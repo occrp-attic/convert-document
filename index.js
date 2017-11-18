@@ -1,9 +1,11 @@
 const express = require('express');
 const multer  = require('multer');
 const uuid = require('uuid/v4');
+const locks = require('locks');
 const fs = require('fs');
 const { spawn, execSync } = require('child_process');
 
+const mutex = locks.createMutex();
 const app = express();
 
 var storage = multer.diskStorage({
@@ -23,22 +25,24 @@ app.post('/convert', upload.single('file'), function (req, res, next) {
                   '-f', format,
                   req.file.path];
     
-    res.status(200);
-    res.type(format);
-        
-    const conv = spawn('unoconv', args);
+    mutex.timedLock(10 * 60 * 60 * 1000, function() {
+        res.status(200);
+        res.type(format);
+            
+        const conv = spawn('unoconv', args);
+        conv.stdout.on('data', (data) => {
+            res.write(data);
+        });
 
-    conv.stdout.on('data', (data) => {
-        res.write(data);
-    });
-
-    conv.stderr.on('data', (data) => {
-        console.log(`${data}`);
-    });
-
-    conv.on('close', (code) => {
-        res.end();
-        fs.unlink(req.file.path);
+        conv.stderr.on('data', (data) => {
+            console.log(`${data}`);
+        });
+    
+        conv.on('close', (code) => {
+            res.end();
+            fs.unlink(req.file.path);
+            mutex.unlock();
+        });
     });
 });
 
