@@ -14,6 +14,7 @@ RUN mkdir -p /app
 WORKDIR /app
 ADD package.json /app
 RUN npm install
-ADD execute.sh index.js /app/
+ADD index.js /app/
 EXPOSE 3000
-CMD ["/app/execute.sh"]
+
+CMD ["node", "index.js"]
