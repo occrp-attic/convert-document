@@ -37,7 +37,7 @@ app.get('/', function(req, res, next) {
 
 app.post('/convert', upload.single('file'), function (req, res, next) {
   const format = req.body.format || 'pdf';
-  const args = ['-n', '-T', '1500', '--stdout',
+  const args = ['-n', '-v', '-T', '3600', '--stdout',
                 '-eSelectPdfVersion=1',
                 '-f', format, req.file.path];
   
