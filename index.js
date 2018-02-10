@@ -38,8 +38,8 @@ app.get('/', function(req, res, next) {
 app.post('/convert', upload.single('file'), function (req, res, next) {
   const format = req.body.format || 'pdf';
   const args = ['-n', '-v', '-T', '3600', '--stdout',
-                '-eSelectPdfVersion=1',
-                '-f', format, req.file.path];
+                '-eSelectPdfVersion=1', '-f', format,
+                req.file.path];
   
   mutex.lock(function() {
     app.locals.req_count += 1;
@@ -52,6 +52,9 @@ app.post('/convert', upload.single('file'), function (req, res, next) {
     });
 
     conv.stderr.on('data', (data) => {
+      if (data.indexOf('Error: Existing listener not found.') !== -1) {
+        process.exit(1);
+      }
       console.log(`${data}`);
     });
 
@@ -61,13 +64,7 @@ app.post('/convert', upload.single('file'), function (req, res, next) {
       mutex.unlock();
 
       if (app.locals.req_count > request_threshold) {
-        server.getConnections(function(err, count) {
-          // Check to see if there are no other requests being processed
-          if (count === 1) {
-              console.log("exiting.")
-              process.exit(1)
-          }
-        })
+        process.exit(1);
       }
     });
   });
