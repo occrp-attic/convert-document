@@ -13,8 +13,12 @@ const server = http.createServer(app);
 const request_threshold = 500;
 app.locals.req_count = 0;
 
-spawn("unoconv", ["--listener"]).on('close', function() {
-  spawn("unoconv", ["--listener", "-v"])
+// first run is required to handle cold startup issue with 
+// libreoffice within docker.
+spawn("unoconv", ["--listener", "-vvv"]).on('close', function() {
+  spawn("unoconv", ["--listener", "-vvv"]).on('close', function() {
+    process.exit(1);
+  });
 })
 
 var storage = multer.diskStorage({
