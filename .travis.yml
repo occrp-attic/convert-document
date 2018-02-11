@@ -2,27 +2,15 @@ sudo: required
 services:
   - docker
 
-env:
-  global:
-    - DOCKER_COMPOSE_VERSION=1.16.1
-
-before_install:
-  - sudo apt-get update
-  - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
-  - sudo rm /usr/local/bin/docker-compose
-  - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
-  - chmod +x docker-compose
-  - sudo mv docker-compose /usr/local/bin
-  - docker --version
-  - docker-compose --version
-
 install:
   - echo "${TRAVIS_BRANCH}"
-  - docker build -t alephdata/unoservice:${TRAVIS_BRANCH} .
+  - docker build -t alephdata/unoservice .
 
 script:
   - sleep 1
 
 after_success:
-  - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-  - docker push alephdata/unoservice:${TRAVIS_BRANCH}
+  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+      docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+      docker push alephdata/unoservice;
+    fi
