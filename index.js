@@ -10,9 +10,6 @@ const mutex = locks.createMutex();
 const app = express();
 const server = http.createServer(app);
 
-const request_threshold = 500;
-app.locals.req_count = 0;
-
 // first run is required to handle cold startup issue with 
 // libreoffice within docker.
 spawn("unoconv", ["--listener", "-vvv"]).on('close', function() {
@@ -40,15 +37,13 @@ app.get('/', function(req, res, next) {
 });
 
 app.post('/convert', upload.single('file'), function (req, res, next) {
-  const format = req.body.format || 'pdf';
   const args = ['-n', '-v', '-T', '3600', '--stdout',
-                '-eSelectPdfVersion=1', '-f', format,
+                '-eSelectPdfVersion=1', '-f', 'pdf',
                 req.file.path];
-  
-  mutex.lock(function() {
-    app.locals.req_count += 1;
+
+  if (mutex.tryLock()) {
     res.status(200);
-    res.type(format);
+    res.type('application/pdf');
 
     const conv = spawn('unoconv', args);
     conv.stdout.on('data', (data) => {
@@ -57,25 +52,26 @@ app.post('/convert', upload.single('file'), function (req, res, next) {
 
     conv.stderr.on('data', (data) => {
       if (data.indexOf('Error: Existing listener not found.') !== -1) {
-        process.exit(1);
+        process.exit(4);
       }
+      // if (data.indexOf('Leaking python objects') !== -1) {
+      //   process.exit(5);
+      // }
       console.log(`${data}`);
     });
 
     conv.on('close', (code) => {
-      res.end();
       fs.unlink(req.file.path);
+      res.end();
       mutex.unlock();
-
-      if (app.locals.req_count > request_threshold) {
-        process.exit(1);
-      }
     });
-  });
+  } else {
+    res.status(502).send();
+  }
 });
 
 process.on('SIGINT', function() {
-  process.exit(1);
+  process.exit(6);
 });
 
 server.listen(3000, '0.0.0.0', function () {
