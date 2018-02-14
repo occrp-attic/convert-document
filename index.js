@@ -32,7 +32,7 @@ app.get('/', function(req, res, next) {
     mutex.unlock();
     res.status(200).send('OK');
   } else {
-    res.status(502).send('BUSY');
+    res.status(503).send('BUSY');
   }
 });
 
@@ -66,7 +66,7 @@ app.post('/convert', upload.single('file'), function (req, res, next) {
       mutex.unlock();
     });
   } else {
-    res.status(502).send();
+    res.status(503).send();
   }
 });
 
