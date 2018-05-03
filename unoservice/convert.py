@@ -155,5 +155,6 @@ if __name__ == "__main__":
     test_libreoffice = PdfConverter()
     # convert MS Word Document file (docx) to PDF
     for i in range(100):
-        test_libreoffice.convert_file("/unoservice/fixtures/agreement.docx", "docx", None, timeout=10)
+        test_libreoffice.convert_file("/unoservice/fixtures/agreement.docx",
+                                      "docx", None, timeout=10)
         print('Round: %s' % i)

@@ -19,12 +19,13 @@ converter.prepare()  # warm it up
 
 
 @app.route('/', methods=['GET', 'POST'])
+@app.route('/convert', methods=['GET'])
 def index():
-    acquired = lock.acquire(blocking=False)
     payload = jsonify({
         'mime_types': FORMATS.mime_types,
         'extensions': FORMATS.extensions
     })
+    acquired = lock.acquire(blocking=False)
     if acquired:
         lock.release()
         return (payload, 200)
