@@ -4,13 +4,15 @@ services:
 
 install:
   - echo "${TRAVIS_BRANCH}"
-  - docker build -t alephdata/unoservice .
+  - docker build -t alephdata/unoservice:latest .
 
 script:
   - sleep 1
 
 after_success:
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then
+  - if [[ $TRAVIS_TAG = $TRAVIS_BRANCH ]]; then
       docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
-      docker push alephdata/unoservice;
+      docker push alephdata/unoservice:latest;
+      docker tag alephdata/unoservice:latest alephdata/unoservice:$TRAVIS_TAG ;
+      docker push alephdata/unoservice:$TRAVIS_TAG ;
     fi

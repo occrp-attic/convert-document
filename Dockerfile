@@ -19,5 +19,5 @@ COPY unoservice /unoservice/unoservice
 WORKDIR /unoservice
 RUN pip3 install -e . 
 
-CMD ["gunicorn", "-b", "0.0.0.0:3000", "-w", "3", "unoservice.api:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:3000", "-w", "1", "-t", "10", "--access-logfile", "-", "--log-level", "info", "unoservice.api:app"]
 

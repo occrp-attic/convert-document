@@ -38,13 +38,14 @@ class PdfConverter(object):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
     def prepare(self):
-        if self.process is not None:
-            # Check if the LibreOffice process has an exit code:
-            if self.process.poll() is not None:
-                self.terminate()
+        # Check if the LibreOffice process has an exit code:
+        if self.process is None or self.process.poll() is not None:
+            log.info("LibreOffice died; reset.")
+            self.terminate()
 
         connection = CONNECTION_STRING % self.port
         if self.process is None:
+            log.info("Starting headless LibreOffice...")
             command = COMMAND % connection
             self.process = subprocess.Popen(command,
                                             shell=True,
@@ -52,8 +53,10 @@ class PdfConverter(object):
                                             stdout=None,
                                             stderr=None)
             time.sleep(3)
+            self.desktop = None
 
         if self.desktop is None:
+            log.info("Connecting to UNO service...")
             local_context = uno.getComponentContext()
             resolver = self._svc_create(local_context, RESOLVER_CLASS)
             context = resolver.resolve("uno:%s" % connection)
@@ -62,6 +65,7 @@ class PdfConverter(object):
     def terminate(self):
         if self.desktop is not None:
             # Clear out our local LO handle.
+            log.info("Destroying UNO desktop instance...")
             try:
                 self.desktop.terminate()
             except Exception:
@@ -71,6 +75,7 @@ class PdfConverter(object):
         if self.process is not None:
             # Check if the LibreOffice process is still running
             if self.process.poll() is None:
+                log.info("Killing LibreOffice process...")
                 self.process.kill()
             self.process = None
 
@@ -104,6 +109,8 @@ class PdfConverter(object):
                                                     '_blank',
                                                     0,
                                                     props)
+            if doc is None:
+                raise ConversionFailure("Cannot open document")
             if hasattr(doc, 'refresh'):
                 doc.refresh()
             output_filter = self.get_output_filter(doc)
@@ -118,6 +125,8 @@ class PdfConverter(object):
             doc.storeToURL(output_url, prop)
             doc.close(True)
             return output_filename
+        except ConversionFailure:
+            raise
         except Exception as exc:
             log.exception("Failed to generate PDF.")
             os.unlink(output_filename)
