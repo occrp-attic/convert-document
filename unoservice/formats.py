@@ -9,9 +9,9 @@ PREFIX = '{%s}' % NS['oor']
 class Formats(object):
     FILES = [
         '/usr/lib/libreoffice/share/registry/writer.xcd',
-        '/usr/lib/libreoffice/share/registry/calc.xcd',
         '/usr/lib/libreoffice/share/registry/impress.xcd',
         '/usr/lib/libreoffice/share/registry/draw.xcd',
+        # '/usr/lib/libreoffice/share/registry/calc.xcd',
     ]
 
     def __init__(self):

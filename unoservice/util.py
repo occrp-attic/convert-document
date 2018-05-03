@@ -1,4 +1,5 @@
 import os
+from celestial import normalize_extension as _normalize_extension
 
 PDF_FILTERS = (
     ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
@@ -17,10 +18,6 @@ def extract_extension(file_name):
 
 
 def normalize_extension(extension):
-    if extension is not None:
-        extension = extension.strip('.')
-        extension = extension.strip()
-        extension = extension.lower()
-    if extension in ['', '*', None]:
-        return
-    return extension
+    if extension == '*':
+        return None
+    return _normalize_extension(extension)
