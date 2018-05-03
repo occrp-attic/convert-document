@@ -1,2 +1,4 @@
 fixtures/.*
 __pycache__/
+.vscode/
+fixtures/*.pdf

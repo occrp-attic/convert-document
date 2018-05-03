@@ -1,124 +1,150 @@
 # derived from https://gist.github.com/six519/28802627584b21ba1f6a
 # unlicensed
-
-import uno
-import subprocess
-import time
 import os
-
+import uno
+import time
+import signal
+import logging
+import subprocess
+from tempfile import mkstemp
 from com.sun.star.beans import PropertyValue
 
+from unoservice.formats import Formats
+from unoservice.exceptions import SystemFailure, ConversionFailure
+from unoservice.exceptions import handle_timeout
 from unoservice.util import PDF_FILTERS
 
-LIBREOFFICE_DEFAULT_PORT = 6519
-LIBREOFFICE_DEFAULT_HOST = "localhost"
+CONNECTION_STRING = "socket,host=localhost,port=%s;urp;StarOffice.ComponentContext"  # noqa
+COMMAND = 'soffice --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
+RESOLVER_CLASS = 'com.sun.star.bridge.UnoUrlResolver'
+DESKTOP_CLASS = 'com.sun.star.frame.Desktop'
+DEFAULT_PORT = 6519
+FORMATS = Formats()
 
-LIBREOFFICE_IMPORT_TYPES = {
-    "docx": {
-        "FilterName": "MS Word 2007 XML"
-    },
-    "pdf": {
-        "FilterName": "PDF - Portable Document Format"
-    },
-    "jpg": {
-        "FilterName": "JPEG - Joint Photographic Experts Group"
-    },
-    "html": {
-        "FilterName": "HTML Document"
-    },
-    "odp": {
-        "FilterName": "OpenDocument Presentation (Flat XML)"
-    },
-    "pptx": {
-        "FilterName": "Microsoft PowerPoint 2007 XML"
-    }
-}
+log = logging.getLogger(__name__)
 
 
-class PythonLibreOffice(object):
+class PdfConverter(object):
+    """Launch a background instance of LibreOffice and convert documents
+    to PDF using it's filters.
+    """
 
-    def __init__(self, host=LIBREOFFICE_DEFAULT_HOST, port=LIBREOFFICE_DEFAULT_PORT):
-        self.host = host
-        self.port = port
-        self.local_context = uno.getComponentContext()
-        self.resolver = self.local_context.ServiceManager.createInstanceWithContext("com.sun.star.bridge.UnoUrlResolver", self.local_context)
-        self.connectionString = "socket,host=%s,port=%s;urp;StarOffice.ComponentContext" % (LIBREOFFICE_DEFAULT_HOST, LIBREOFFICE_DEFAULT_PORT)
-        self.context = None
+    def __init__(self, host=None, port=None):
+        self.port = port or DEFAULT_PORT
         self.desktop = None
-        self.runUnoProcess()
-        self.__lastErrorMessage = ""
+        self.process = None
 
-        try:
-            self.context = self.resolver.resolve("uno:%s" % self.connectionString)
-            self.desktop = self.context.ServiceManager.createInstanceWithContext("com.sun.star.frame.Desktop", self.context)
-        except Exception as e:
-            self.__lastErrorMessage = str(e)
+    def _svc_create(self, ctx, clazz):
+        return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
-    @property
-    def lastError(self):
-        return self.__lastErrorMessage
+    def prepare(self):
+        if self.process is not None:
+            # Check if the LibreOffice process has an exit code:
+            if self.process.poll() is not None:
+                self.terminate()
 
-    def terminateProcess(self):
-        try:
-            if self.desktop:
+        connection = CONNECTION_STRING % self.port
+        if self.process is None:
+            command = COMMAND % connection
+            self.process = subprocess.Popen(command,
+                                            shell=True,
+                                            stdin=None,
+                                            stdout=None,
+                                            stderr=None)
+            time.sleep(3)
+
+        if self.desktop is None:
+            local_context = uno.getComponentContext()
+            resolver = self._svc_create(local_context, RESOLVER_CLASS)
+            context = resolver.resolve("uno:%s" % connection)
+            self.desktop = self._svc_create(context, DESKTOP_CLASS)
+
+    def terminate(self):
+        if self.desktop is not None:
+            # Clear out our local LO handle.
+            try:
                 self.desktop.terminate()
-        except Exception as e:
-            self.__lastErrorMessage = str(e)
-            return False
-        return True
+            except Exception:
+                log.exception("Failed to terminate")
+            self.desktop = None
 
-    def convertFile(self, inputFilename):
-        if self.desktop:
-            tOldFileName = os.path.splitext(inputFilename)
-            outputFilename = "%s.pdf" % tOldFileName[0]
-            inputFormat = tOldFileName[1].replace(".", "")
-            inputUrl = uno.systemPathToFileUrl(os.path.abspath(inputFilename))
-            outputUrl = uno.systemPathToFileUrl(os.path.abspath(outputFilename))
+        if self.process is not None:
+            # Check if the LibreOffice process is still running
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process = None
 
-            if inputFormat in LIBREOFFICE_IMPORT_TYPES:
-                inputProperties = {"Hidden": True}
-                inputProperties.update(LIBREOFFICE_IMPORT_TYPES[inputFormat])
+    def convert_file(self, file_name, extension, mime_type, timeout=600):
+        try:
+            self.prepare()
+        except Exception:
+            log.exception("Failed to instantiate UNO bridge.")
+            self.terminate()
+            raise SystemFailure("Cannot process documents")
 
-                doc = self.desktop.loadComponentFromURL(inputUrl, "_blank", 0, self.propertyTuple(inputProperties))
+        file_name = os.path.abspath(file_name)
+        input_filter = FORMATS.get_filter(extension, mime_type)
+        if input_filter is None:
+            raise ConversionFailure("Cannot determine input format.")
 
-                try:
-                    doc.refresh()
-                except Exception:
-                    pass
+        fd, output_filename = mkstemp(suffix='.pdf')
+        os.close(fd)
+        input_url = uno.systemPathToFileUrl(file_name)
+        output_url = uno.systemPathToFileUrl(output_filename)
 
-                docFilter = self.getDocumentFilter(doc)
-                if docFilter:
-                    try:
-                        doc.storeToURL(outputUrl, self.propertyTuple(docFilter))
-                        doc.close(True)
+        # Trigger SIGALRM after the timeout has passed.
+        signal.signal(signal.SIGALRM, handle_timeout)
+        signal.alarm(timeout)
+        try:
+            props = self.property_tuple({
+                "Hidden": True,
+                "FilterName": input_filter
+            })
+            doc = self.desktop.loadComponentFromURL(input_url,
+                                                    '_blank',
+                                                    0,
+                                                    props)
+            if hasattr(doc, 'refresh'):
+                doc.refresh()
+            output_filter = self.get_output_filter(doc)
+            if output_filter is None:
+                raise ConversionFailure("Cannot export to PDF.")
 
-                        return True
-                    except Exception as e:
-                        self.__lastErrorMessage = str(e)
-        self.terminateProcess()
-        return False
+            prop = self.property_tuple({
+                "FilterName": output_filter,
+                "MaxImageResolution": 300,
+                "SelectPdfVersion": 1,
+            })
+            doc.storeToURL(output_url, prop)
+            doc.close(True)
+            return output_filename
+        except Exception as exc:
+            log.exception("Failed to generate PDF.")
+            os.unlink(output_filename)
+            self.terminate()
+            raise ConversionFailure(str(exc))
+        finally:
+            signal.alarm(0)
 
-    def propertyTuple(self, propDict):
+    def property_tuple(self, propDict):
         properties = []
-        for k,v in propDict.items():
+        for k, v in propDict.items():
             property = PropertyValue()
             property.Name = k
             property.Value = v
             properties.append(property)
-
         return tuple(properties)
 
-    def getDocumentFilter(self, doc):
+    def get_output_filter(self, doc):
         for (service, pdf) in PDF_FILTERS:
             if doc.supportsService(service):
                 return pdf
 
-    def runUnoProcess(self):
-        subprocess.Popen('soffice --headless --norestore --accept="%s"' % self.connectionString, shell=True, stdin=None, stdout=None, stderr=None)
-        time.sleep(3)
-
 
 if __name__ == "__main__":
-    test_libreoffice = PythonLibreOffice()
+    logging.basicConfig(level=logging.DEBUG)
+    test_libreoffice = PdfConverter()
     # convert MS Word Document file (docx) to PDF
-    test_libreoffice.convertFile("/unoservice/fixtures/agreement.docx")
+    for i in range(100):
+        test_libreoffice.convert_file("/unoservice/fixtures/agreement.docx", "docx", None, timeout=10)
+        print('Round: %s' % i)
