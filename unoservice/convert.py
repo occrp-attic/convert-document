@@ -52,7 +52,7 @@ class PdfConverter(object):
                                             stdin=None,
                                             stdout=None,
                                             stderr=None)
-            time.sleep(3)
+            time.sleep(5)
             self.desktop = None
 
         if self.desktop is None:

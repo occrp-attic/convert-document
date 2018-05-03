@@ -16,6 +16,7 @@ setup(
     install_requires=[
         'Flask==1.0',
         'celestial>=0.2.3',
+        'pyicu>=2.0.3',
         'gunicorn'
     ],
     test_suite='nose.collector',

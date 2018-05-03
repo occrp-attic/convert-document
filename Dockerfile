@@ -8,7 +8,7 @@ RUN apt-get -qq -y update \
         fonts-dejavu-core fonts-dejavu-extra fonts-droid-fallback fonts-dustin \
         fonts-f500 fonts-fanwood fonts-freefont-ttf fonts-liberation fonts-lmodern \
         fonts-lyx fonts-sil-gentium fonts-texgyre fonts-tlwg-purisa python3-pip \
-        python3-uno python3-lxml \
+        python3-uno python3-lxml libicu-dev \
     && apt-get -qq -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
