@@ -40,7 +40,7 @@ class PdfConverter(object):
     def prepare(self):
         # Check if the LibreOffice process has an exit code:
         if self.process is None or self.process.poll() is not None:
-            log.info("LibreOffice died; reset.")
+            log.info("LibreOffice not running; reset.")
             self.terminate()
 
         connection = CONNECTION_STRING % self.port

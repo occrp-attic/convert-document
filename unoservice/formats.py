@@ -1,5 +1,7 @@
 from lxml import etree
 
+from unoservice.util import normalize_extension
+
 NS = {'oor': 'http://openoffice.org/2001/registry'}
 PREFIX = '{%s}' % NS['oor']
 
@@ -33,7 +35,8 @@ class Formats(object):
                     self.mime_types[media_type] = name
                 extensions = node.get('Extensions', '')
                 for ext in extensions.split(' '):
-                    if ext is not None and len(ext) > 1:
+                    ext = normalize_extension(ext)
+                    if ext is not None:
                         self.extensions[ext] = name
 
     def get_filter(self, extension, mime_type):
