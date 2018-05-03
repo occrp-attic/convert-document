@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='unoservice',
-    version='1.0.5',
+    version='1.0.6',
     long_description="LibreOffice PDF conversion servi ce.",
     author='Organized Crime and Corruption Reporting Project',
     author_email='pudo@occrp.org',
