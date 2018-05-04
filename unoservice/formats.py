@@ -1,9 +1,10 @@
 from lxml import etree
-
-from unoservice.util import normalize_extension
+from collections import defaultdict, OrderedDict
+from celestial import normalize_mimetype
+from unoservice.util import parse_extensions
 
 NS = {'oor': 'http://openoffice.org/2001/registry'}
-PREFIX = '{%s}' % NS['oor']
+NAME = '{%s}name' % NS['oor']
 
 
 class Formats(object):
@@ -15,37 +16,42 @@ class Formats(object):
     ]
 
     def __init__(self):
-        self.mime_types = {}
-        self.extensions = {}
+        self.media_types = defaultdict(list)
+        self.extensions = defaultdict(list)
         for xcd_file in self.FILES:
             doc = etree.parse(xcd_file)
             path = './*[@oor:package="org.openoffice.TypeDetection"]/node/node'
             for tnode in doc.xpath(path, namespaces=NS):
                 node = {}
                 for prop in tnode.findall('./prop'):
-                    name = prop.get('%sname' % PREFIX)
+                    name = prop.get(NAME)
                     for value in prop.findall('./value'):
                         node[name] = value.text
 
-                name = node.get('Type', node.get('UIName'))
-                name = node.get('PreferredFilter', name)
-
-                media_type = node.get('MediaType')
+                name = node.get('PreferredFilter', tnode.get(NAME))
+                media_type = normalize_mimetype(node.get('MediaType'),
+                                                default=None)
                 if media_type is not None:
-                    self.mime_types[media_type] = name
-                extensions = node.get('Extensions', '')
-                for ext in extensions.split(' '):
-                    ext = normalize_extension(ext)
-                    if ext is not None:
-                        self.extensions[ext] = name
+                    self.media_types[media_type].append(name)
 
-    def get_filter(self, extension, mime_type):
-        if mime_type in self.mime_types:
-            return self.mime_types.get(mime_type)
-        if extension in self.extensions:
-            return self.extensions.get(extension)
+                for ext in parse_extensions(node.get('Extensions')):
+                    self.extensions[ext].append(name)
+
+    def get_filters(self, extension, media_type):
+        filters = OrderedDict()
+        for filter_name in self.media_types.get(media_type, []):
+            filters[filter_name] = None
+        for filter_name in self.extensions.get(extension, []):
+            filters[filter_name] = None
+        return filters.keys()
+
+    def to_json(self):
+        return {
+            'media_types': dict(self.media_types),
+            'extensions': dict(self.extensions),
+        }
 
 
 if __name__ == "__main__":
     formats = Formats()
-    print(formats.get_filter('docx', None))
+    print(formats.get_filters('doc', None))

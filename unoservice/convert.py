@@ -79,7 +79,26 @@ class PdfConverter(object):
                 self.process.kill()
             self.process = None
 
-    def convert_file(self, file_name, extension, mime_type, timeout=600):
+    def open_document(self, input_url, filters):
+        for filter_name in filters:
+            props = self.property_tuple({
+                "Hidden": True,
+                "MacroExecutionMode": 0,
+                "ReadOnly": True,
+                "FilterName": filter_name
+            })
+            doc = self.desktop.loadComponentFromURL(input_url,
+                                                    '_blank',
+                                                    0,
+                                                    props)
+            if doc is None:
+                continue
+            if hasattr(doc, 'refresh'):
+                doc.refresh()
+            return doc
+        raise ConversionFailure("Cannot open this document")
+
+    def convert_file(self, file_name, filters, timeout=600):
         try:
             self.prepare()
         except Exception:
@@ -87,13 +106,9 @@ class PdfConverter(object):
             self.terminate()
             raise SystemFailure("Cannot process documents")
 
-        file_name = os.path.abspath(file_name)
-        input_filter = FORMATS.get_filter(extension, mime_type)
-        if input_filter is None:
-            raise ConversionFailure("Cannot determine input format.")
-
         fd, output_filename = mkstemp(suffix='.pdf')
         os.close(fd)
+        file_name = os.path.abspath(file_name)
         input_url = uno.systemPathToFileUrl(file_name)
         output_url = uno.systemPathToFileUrl(output_filename)
 
@@ -101,21 +116,10 @@ class PdfConverter(object):
         signal.signal(signal.SIGALRM, handle_timeout)
         signal.alarm(timeout)
         try:
-            props = self.property_tuple({
-                "Hidden": True,
-                "FilterName": input_filter
-            })
-            doc = self.desktop.loadComponentFromURL(input_url,
-                                                    '_blank',
-                                                    0,
-                                                    props)
-            if doc is None:
-                raise ConversionFailure("Cannot open document")
-            if hasattr(doc, 'refresh'):
-                doc.refresh()
+            doc = self.open_document(input_url, filters)
             output_filter = self.get_output_filter(doc)
             if output_filter is None:
-                raise ConversionFailure("Cannot export to PDF.")
+                raise ConversionFailure("Cannot export to PDF")
 
             prop = self.property_tuple({
                 "FilterName": output_filter,
@@ -128,7 +132,7 @@ class PdfConverter(object):
         except ConversionFailure:
             raise
         except Exception as exc:
-            log.exception("Failed to generate PDF.")
+            log.exception("Failed to export to PDF")
             os.unlink(output_filename)
             self.terminate()
             raise ConversionFailure(str(exc))
@@ -148,13 +152,3 @@ class PdfConverter(object):
         for (service, pdf) in PDF_FILTERS:
             if doc.supportsService(service):
                 return pdf
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    test_libreoffice = PdfConverter()
-    # convert MS Word Document file (docx) to PDF
-    for i in range(100):
-        test_libreoffice.convert_file("/unoservice/fixtures/agreement.docx",
-                                      "docx", None, timeout=10)
-        print('Round: %s' % i)

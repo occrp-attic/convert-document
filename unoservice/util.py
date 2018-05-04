@@ -1,4 +1,4 @@
-from celestial import normalize_extension as _normalize_extension
+from celestial import normalize_extension
 
 PDF_FILTERS = (
     ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
@@ -9,7 +9,11 @@ PDF_FILTERS = (
 )
 
 
-def normalize_extension(extension):
-    if extension == '*':
-        return None
-    return _normalize_extension(extension)
+def parse_extensions(extensions):
+    if extensions is not None:
+        for ext in extensions.split(' '):
+            if ext == '*':
+                continue
+            ext = normalize_extension(ext)
+            if ext is not None:
+                yield ext
