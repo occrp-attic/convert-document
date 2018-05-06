@@ -104,7 +104,7 @@ class PdfConverter(object):
             return doc
         raise ConversionFailure("Cannot open this document")
 
-    def convert_file(self, file_name, filters, timeout=600):
+    def convert_file(self, file_name, filters, timeout=300):
         fd, output_filename = mkstemp(suffix='.pdf')
         os.close(fd)
 
