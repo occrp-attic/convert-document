@@ -13,12 +13,7 @@ setup(
     include_package_data=True,
     package_data={},
     zip_safe=False,
-    install_requires=[
-        'Flask==1.0',
-        'celestial>=0.2.3',
-        'pyicu>=2.0.3',
-        'gunicorn'
-    ],
+    install_requires=[],
     test_suite='nose.collector',
     entry_points={},
     tests_require=['coverage', 'nose']

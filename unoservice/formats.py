@@ -44,14 +44,3 @@ class Formats(object):
         for filter_name in self.extensions.get(extension, []):
             filters[filter_name] = None
         return filters.keys()
-
-    def to_json(self):
-        return {
-            'media_types': dict(self.media_types),
-            'extensions': dict(self.extensions),
-        }
-
-
-if __name__ == "__main__":
-    formats = Formats()
-    print(formats.get_filters('doc', None))

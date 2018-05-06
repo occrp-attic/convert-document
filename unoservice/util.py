@@ -9,6 +9,18 @@ PDF_FILTERS = (
 )
 
 
+class SystemFailure(Exception):
+    pass
+
+
+class ConversionFailure(Exception):
+    pass
+
+
+def handle_timeout(signum, frame):
+    raise ConversionFailure('Conversion timed out.')
+
+
 def parse_extensions(extensions):
     if extensions is not None:
         for ext in extensions.split(' '):

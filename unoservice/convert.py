@@ -10,9 +10,8 @@ from tempfile import mkstemp
 from com.sun.star.beans import PropertyValue
 
 from unoservice.formats import Formats
-from unoservice.exceptions import SystemFailure, ConversionFailure
-from unoservice.exceptions import handle_timeout
-from unoservice.util import PDF_FILTERS
+from unoservice.util import SystemFailure, ConversionFailure
+from unoservice.util import handle_timeout, PDF_FILTERS
 
 CONNECTION_STRING = "socket,host=localhost,port=%s;urp;StarOffice.ComponentContext"  # noqa
 COMMAND = 'soffice --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
@@ -52,7 +51,7 @@ class PdfConverter(object):
                                             stdin=None,
                                             stdout=None,
                                             stderr=None)
-            time.sleep(5)
+            time.sleep(4)
             self.desktop = None
 
         if self.desktop is None:
@@ -102,8 +101,9 @@ class PdfConverter(object):
         try:
             self.prepare()
         except Exception:
-            log.exception("Failed to instantiate UNO bridge.")
             self.terminate()
+
+        if self.desktop is None:
             raise SystemFailure("Cannot process documents")
 
         fd, output_filename = mkstemp(suffix='.pdf')
@@ -130,11 +130,12 @@ class PdfConverter(object):
             doc.close(True)
             return output_filename
         except ConversionFailure:
+            self.terminate()
+            os.unlink(output_filename)
             raise
         except Exception as exc:
-            log.exception("Failed to export to PDF")
-            os.unlink(output_filename)
             self.terminate()
+            os.unlink(output_filename)
             raise ConversionFailure(str(exc))
         finally:
             signal.alarm(0)

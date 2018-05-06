@@ -13,14 +13,13 @@ RUN apt-get -qq -y update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+RUN pip3 install aiohttp \
+                 celestial>=0.2.3 \
+                 pyicu>=2.0.3
 RUN mkdir -p /unoservice
 COPY setup.py /unoservice
 COPY unoservice /unoservice/unoservice
 WORKDIR /unoservice
 RUN pip3 install -e . 
 
-CMD ["gunicorn", "-b", "0.0.0.0:3000", "-w", "1", "-t", "10", \
-     "--access-logfile", "-", "--log-level", "info", \
-     "--timeout", "3600", "--keep-alive", "90", \
-     "unoservice.api:app"]
-
+CMD ["python3", "unoservice/async.py"]
