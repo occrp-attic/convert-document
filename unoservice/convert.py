@@ -2,15 +2,15 @@
 # unlicensed
 import os
 import uno
-import time
 import signal
+import asyncio
 import logging
 import subprocess
 from tempfile import mkstemp
 from com.sun.star.beans import PropertyValue
 
 from unoservice.formats import Formats
-from unoservice.util import SystemFailure, ConversionFailure
+from unoservice.util import ConversionFailure
 from unoservice.util import handle_timeout, PDF_FILTERS
 
 CONNECTION_STRING = "socket,host=localhost,port=%s;urp;StarOffice.ComponentContext"  # noqa
@@ -27,6 +27,14 @@ class PdfConverter(object):
     """Launch a background instance of LibreOffice and convert documents
     to PDF using it's filters.
     """
+    
+    PDF_FILTERS = (
+        ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
+        ("com.sun.star.text.WebDocument", "writer_web_pdf_Export"),
+        ("com.sun.star.sheet.SpreadsheetDocument", "calc_pdf_Export"),
+        ("com.sun.star.presentation.PresentationDocument", "impress_pdf_Export"),
+        ("com.sun.star.drawing.DrawingDocument", "draw_pdf_Export"),
+    )
 
     def __init__(self, host=None, port=None):
         self.port = port or DEFAULT_PORT
@@ -36,7 +44,7 @@ class PdfConverter(object):
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
-    def prepare(self):
+    async def prepare(self):
         # Check if the LibreOffice process has an exit code:
         if self.process is None or self.process.poll() is not None:
             log.info("LibreOffice not running; reset.")
@@ -51,7 +59,7 @@ class PdfConverter(object):
                                             stdin=None,
                                             stdout=None,
                                             stderr=None)
-            time.sleep(4)
+            await asyncio.sleep(5)
             self.desktop = None
 
         if self.desktop is None:
@@ -98,16 +106,9 @@ class PdfConverter(object):
         raise ConversionFailure("Cannot open this document")
 
     def convert_file(self, file_name, filters, timeout=600):
-        try:
-            self.prepare()
-        except Exception:
-            self.terminate()
-
-        if self.desktop is None:
-            raise SystemFailure("Cannot process documents")
-
         fd, output_filename = mkstemp(suffix='.pdf')
         os.close(fd)
+
         file_name = os.path.abspath(file_name)
         input_url = uno.systemPathToFileUrl(file_name)
         output_url = uno.systemPathToFileUrl(output_filename)
@@ -117,26 +118,20 @@ class PdfConverter(object):
         signal.alarm(timeout)
         try:
             doc = self.open_document(input_url, filters)
-            output_filter = self.get_output_filter(doc)
-            if output_filter is None:
-                raise ConversionFailure("Cannot export to PDF")
-
-            prop = self.property_tuple({
-                "FilterName": output_filter,
-                "MaxImageResolution": 300,
-                "SelectPdfVersion": 1,
-            })
-            doc.storeToURL(output_url, prop)
-            doc.close(True)
-            return output_filename
-        except ConversionFailure:
-            self.terminate()
+            for (service, pdf) in self.PDF_FILTERS:
+                if doc.supportsService(service):
+                    prop = self.property_tuple({
+                        "FilterName": pdf,
+                        "MaxImageResolution": 300,
+                        "SelectPdfVersion": 1,
+                    })
+                    doc.storeToURL(output_url, prop)
+                    doc.close(True)
+                    return output_filename
+            raise ConversionFailure("Cannot export to PDF")
+        except Exception:
             os.unlink(output_filename)
             raise
-        except Exception as exc:
-            self.terminate()
-            os.unlink(output_filename)
-            raise ConversionFailure(str(exc))
         finally:
             signal.alarm(0)
 
@@ -148,8 +143,3 @@ class PdfConverter(object):
             property.Value = v
             properties.append(property)
         return tuple(properties)
-
-    def get_output_filter(self, doc):
-        for (service, pdf) in PDF_FILTERS:
-            if doc.supportsService(service):
-                return pdf

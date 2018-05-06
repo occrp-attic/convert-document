@@ -1,13 +1,14 @@
 import os
 import shutil
 import logging
+import asyncio
 from aiohttp import web
 from threading import Lock
 from tempfile import mkstemp
 from celestial import normalize_mimetype, normalize_extension
 
 from unoservice.convert import FORMATS, PdfConverter
-from unoservice.util import SystemFailure, ConversionFailure
+from unoservice.util import ConversionFailure
 
 MEGABYTE = 1024 * 1024
 BUFFER_SIZE = 8 * MEGABYTE
@@ -41,9 +42,12 @@ async def convert(request):
         mime_type = normalize_mimetype(upload.content_type, default=None)
         filters = list(FORMATS.get_filters(extension, mime_type))
 
+        await converter.prepare()
+        await asyncio.sleep(0)
         out_file = converter.convert_file(upload_file, filters)
         out_size = os.path.getsize(out_file) if os.path.exists(out_file) else 0
         lock.release()
+        await asyncio.sleep(0)
 
         response = web.StreamResponse()
         response.content_length = out_size
@@ -56,14 +60,12 @@ async def convert(request):
                     break
                 await response.write(chunk)
         return response
-    except SystemFailure as exc:
-        log.error('%s', exc)
+    except Exception as exc:
+        log.exception('Conversion failed.')
+        converter.terminate()
         lock.release()
-        return web.Response(text=str(exc))
-    except ConversionFailure as exc:
-        log.warning('Failure: %s', exc)
-        lock.release()
-        return web.Response(text=str(exc), status=400)
+        status = 400 if isinstance(exc, ConversionFailure) else 503
+        return web.Response(text=str(exc), status=status)
     finally:
         if os.path.exists(upload_file):
             os.remove(upload_file)
