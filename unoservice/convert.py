@@ -11,7 +11,7 @@ from com.sun.star.beans import PropertyValue
 
 from unoservice.formats import Formats
 from unoservice.util import ConversionFailure
-from unoservice.util import handle_timeout, PDF_FILTERS
+from unoservice.util import handle_timeout
 
 CONNECTION_STRING = "socket,host=localhost,port=%s;urp;StarOffice.ComponentContext"  # noqa
 COMMAND = 'soffice --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
@@ -27,7 +27,6 @@ class PdfConverter(object):
     """Launch a background instance of LibreOffice and convert documents
     to PDF using it's filters.
     """
-    
     PDF_FILTERS = (
         ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
         ("com.sun.star.text.WebDocument", "writer_web_pdf_Export"),
