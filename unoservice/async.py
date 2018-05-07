@@ -41,11 +41,17 @@ async def convert(request):
         extension = normalize_extension(upload.filename)
         mime_type = normalize_mimetype(upload.content_type, default=None)
         filters = list(FORMATS.get_filters(extension, mime_type))
+        timeout = int(request.query.get('timeout', 300))
+        timeout = max(10, timeout - 5)
 
         await converter.prepare()
         await asyncio.sleep(0)
-        out_file = converter.convert_file(upload_file, filters)
-        out_size = os.path.getsize(out_file) if os.path.exists(out_file) else 0
+        out_file = converter.convert_file(upload_file,
+                                          filters,
+                                          timeout=timeout)
+        out_size = 0
+        if os.path.exists(out_file):
+            out_size = os.path.getsize(out_file)
         lock.release()
         await asyncio.sleep(0)
 
