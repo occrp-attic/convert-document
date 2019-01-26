@@ -4,7 +4,7 @@ services:
 
 install:
   - echo "${TRAVIS_BRANCH}"
-  - docker build -t alephdata/unoservice:latest .
+  - docker build -t alephdata/aleph-convert-document:latest .
 
 script:
   - sleep 1
@@ -12,7 +12,7 @@ script:
 after_success:
   - if [[ $TRAVIS_TAG = $TRAVIS_BRANCH ]]; then
       docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
-      docker push alephdata/unoservice:latest;
-      docker tag alephdata/unoservice:latest alephdata/unoservice:$TRAVIS_TAG ;
-      docker push alephdata/unoservice:$TRAVIS_TAG ;
+      docker push alephdata/aleph-convert-document:latest;
+      docker tag alephdata/aleph-convert-document:latest alephdata/aleph-convert-document:$TRAVIS_TAG ;
+      docker push alephdata/aleph-convert-document:$TRAVIS_TAG ;
     fi

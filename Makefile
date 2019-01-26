@@ -1,14 +1,14 @@
 
-all: build run
+all: test
 
 build:
-	docker build --rm -t alephdata/unoservice .
+	docker build -t alephdata/aleph-convert-document .
 
-run:
-	docker run -p 5003:3000 --memory=1g --rm --mount type=tmpfs,destination=/tmp --mount type=tmpfs,destination=/root/.config -ti alephdata/unoservice
+test: build
+	docker run -ti alephdata/aleph-convert-document pytest
 
-shell:
-	docker run --rm -v $(PWD)/unoservice:/unoservice/unoservice -v $(PWD)/fixtures:/unoservice/fixtures --mount type=tmpfs,destination=/tmp --mount type=tmpfs,destination=/root/.config -ti alephdata/unoservice /bin/bash
+shell: build
+	docker run -ti alephdata/aleph-convert-document sh
 
-push:
-	docker push alephdata/unoservice
+run: build
+	docker run -ti alephdata/aleph-convert-document
