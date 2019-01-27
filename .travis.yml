@@ -17,4 +17,6 @@ after_success:
       docker push alephdata/aleph-convert-document;
       docker tag alephdata/aleph-convert-document alephdata/aleph-convert-document:$TRAVIS_TAG ;
       docker push alephdata/aleph-convert-document:$TRAVIS_TAG ;
+      docker tag alephdata/aleph-convert-document alephdata/aleph-convert-document:occrp ;
+      docker push alephdata/aleph-convert-document:occrp ;
     fi
