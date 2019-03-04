@@ -4,19 +4,17 @@ services:
 
 install:
   - echo "${TRAVIS_BRANCH}"
-  - docker build -t alephdata/aleph-convert-document .
+  - docker build -t alephdata/convert-document .
 
 script:
   - sleep 1
 
 after_success:
   - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-  - docker tag alephdata/aleph-convert-document alephdata/aleph-convert-document:master
-  - docker push alephdata/aleph-convert-document:master
+  - docker tag alephdata/convert-document alephdata/convert-document:$TRAVIS_COMMIT
+  - docker push alephdata/convert-document:$TRAVIS_COMMIT
   - if [[ $TRAVIS_TAG = $TRAVIS_BRANCH ]]; then
-      docker push alephdata/aleph-convert-document;
-      docker tag alephdata/aleph-convert-document alephdata/aleph-convert-document:$TRAVIS_TAG ;
-      docker push alephdata/aleph-convert-document:$TRAVIS_TAG ;
-      docker tag alephdata/aleph-convert-document alephdata/aleph-convert-document:occrp ;
-      docker push alephdata/aleph-convert-document:occrp ;
+      docker push alephdata/convert-document;
+      docker tag alephdata/convert-document alephdata/convert-document:$TRAVIS_TAG ;
+      docker push alephdata/convert-document:$TRAVIS_TAG ;
     fi

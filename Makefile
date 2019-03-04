@@ -2,13 +2,13 @@
 all: test
 
 build:
-	docker build -t alephdata/aleph-convert-document .
+	docker build -t alephdata/convert-document .
 
 test: build
-	docker run -ti alephdata/aleph-convert-document pytest
+	docker run -ti alephdata/convert-document pytest
 
 shell: build
-	docker run -ti alephdata/aleph-convert-document sh
+	docker run -ti alephdata/convert-document sh
 
 run: build
-	docker run -ti alephdata/aleph-convert-document
+	docker run -ti alephdata/convert-document
