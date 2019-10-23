@@ -2,11 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='convert',
-    version='1.4.0',
+    version='3.3.2',
     packages=find_packages(exclude=[]),
-    install_requires=[
-        'aiohttp',
-        'pantomime',
-        'pyicu'
-    ],
+    install_requires=[],
 )
