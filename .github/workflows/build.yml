@@ -1,9 +1,10 @@
 name: build
 
 on:
-  - push: {}
-  - schedule:
-    - cron:  '* 4 * * *'
+  push:
+    branch: master
+  schedule:
+  - cron:  '* 4 * * *'
 
 jobs:
   docker:
