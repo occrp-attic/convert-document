@@ -1,4 +1,5 @@
 import os
+import time
 import logging
 import traceback
 import subprocess
@@ -41,11 +42,36 @@ class ShutdownMiddleware:
 app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
+def convert_file(source_file):
+    if os.path.exists(OUT_PATH):
+        os.unlink(OUT_PATH)
+    args = ['unoconv',
+            '-f', 'pdf',
+            '-vvv',
+            '--timeout', str(TIMEOUT + 1),
+            '-o', OUT_PATH,
+            '-i', 'MacroExecutionMode=0',
+            '-i', 'ReadOnly=1',
+            '-e', 'SelectPdfVersion=1',
+            '-e', 'MaxImageResolution=300',
+            # '--no-launch',
+            source_file]
+    err = subprocess.call(args, timeout=TIMEOUT)
+    log.debug("LibreOffice exit code: %s", err)
+    if err != 0 or not os.path.exists(OUT_PATH):
+        return RuntimeError()
+    return OUT_PATH
+
+
 @app.route("/")
 def info():
     acquired = lock.acquire(timeout=2)
     if not acquired:
         return ("BUSY", 503)
+    if listener.poll() is not None:
+        log.error("Listener has terminated.")
+        app.is_dead = True
+        return ("DEAD", 503)
     return ("OK", 200)
 
 
@@ -55,9 +81,6 @@ def convert():
     if not acquired:
         return ("BUSY", 503)
     try:
-        if os.path.exists(OUT_PATH):
-            os.unlink(OUT_PATH)
-
         upload = request.files['file']
         extension = normalize_extension(upload.filename)
         mime_type = normalize_mimetype(upload.mimetype, default=None)
@@ -72,20 +95,10 @@ def convert():
             log.error("Listener has terminated.")
             app.is_dead = True
             return ("DEAD", 503)
-
-        args = ['unoconv',
-                '-f', 'pdf',
-                '-o', OUT_PATH,
-                '-i', 'MacroExecutionMode=0',
-                '-i', 'ReadOnly=1',
-                '-e', 'SelectPdfVersion=1',
-                '-e', 'MaxImageResolution=300',
-                '--no-launch',
-                upload_file]
-        err = subprocess.call(args, timeout=TIMEOUT)
-        if err != 0 or not os.path.exists(OUT_PATH):
-            return ('The document could not be converted to PDF.', 400)
-        return send_file(OUT_PATH)
+        out_file = convert_file(upload_file)
+        return send_file(out_file)
+    except RuntimeError:
+        return ('The document could not be converted to PDF.', 400)
     except subprocess.TimeoutExpired:
         log.error("Timeout exceeded: %s", upload.filename)
         app.is_dead = True
@@ -95,5 +108,6 @@ def convert():
 
 
 if __name__ == '__main__':
+    time.sleep(2)
     # app.run(debug=True, port=3000, host='0.0.0.0')
     app.run(port=3000, host='0.0.0.0', threaded=True)

@@ -2,3 +2,4 @@ fixtures/.*
 __pycache__/
 .vscode/
 fixtures/*.pdf
+out.pdf

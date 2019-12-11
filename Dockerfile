@@ -25,7 +25,8 @@ RUN groupadd -g 1000 -r app \
 ADD https://raw.githubusercontent.com/unoconv/unoconv/0.8.2/unoconv /usr/bin/unoconv
 RUN chmod a+rx /usr/bin/unoconv
 RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN pip3 install --no-cache-dir -q flask pantomime>=0.3.2
+COPY requirements.txt /tmp/
+RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
 RUN mkdir -p /convert
 COPY setup.py /convert
 COPY convert /convert/convert
