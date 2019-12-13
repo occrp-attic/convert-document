@@ -98,6 +98,7 @@ def convert():
         out_file = convert_file(upload_file)
         return send_file(out_file)
     except RuntimeError:
+        app.is_dead = True
         return ('The document could not be converted to PDF.', 400)
     except subprocess.TimeoutExpired:
         log.error("Timeout exceeded: %s", upload.filename)
