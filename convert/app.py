@@ -28,6 +28,8 @@ class ShutdownMiddleware:
         self.application = application
 
     def post_request(self):
+        if os.path.exists(OUT_PATH):
+            os.unlink(OUT_PATH)
         if app.is_dead:
             os._exit(0)
 
@@ -44,8 +46,6 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
 def convert_file(source_file):
-    if os.path.exists(OUT_PATH):
-        os.unlink(OUT_PATH)
     args = ['unoconv',
             '-f', 'pdf',
             '-vvv',
@@ -78,7 +78,7 @@ def info():
 
 @app.route("/convert", methods=['POST'])
 def convert():
-    acquired = lock.acquire(timeout=2)
+    acquired = lock.acquire(timeout=5)
     if not acquired:
         return ("BUSY", 503)
     # if listener.poll() is not None:
@@ -99,6 +99,8 @@ def convert():
             upload.save(fh)
             fh.close()
             out_file = convert_file(upload_file)
+            if os.path.exists(upload_file):
+                os.unlink(upload_file)
             return send_file(out_file, mimetype='application/pdf')
     except RuntimeError:
         app.is_dead = True
