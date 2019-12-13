@@ -60,7 +60,7 @@ def convert_file(source_file):
     err = subprocess.call(args, timeout=TIMEOUT)
     log.debug("LibreOffice exit code: %s", err)
     if err != 0 or not os.path.exists(OUT_PATH):
-        return RuntimeError()
+        raise RuntimeError()
     return OUT_PATH
 
 
