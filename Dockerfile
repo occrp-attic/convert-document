@@ -34,4 +34,12 @@ WORKDIR /convert
 RUN pip3 install -q -e .
 
 USER app
-CMD ["python3", "convert/app.py"]
+CMD ["gunicorn", \
+     "--threads", "3", \
+     "--bind", "0.0.0.0:3000", \
+     "--max-requests", "30", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--timeout", "300", \
+     "--graceful-timeout", "300", \
+     "convert.app:app"]
