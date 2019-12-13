@@ -81,10 +81,10 @@ def convert():
     acquired = lock.acquire(timeout=2)
     if not acquired:
         return ("BUSY", 503)
-    if listener.poll() is not None:
-        log.error("Listener has terminated.")
-        app.is_dead = True
-        return ("DEAD", 503)
+    # if listener.poll() is not None:
+    #     log.error("Listener has terminated.")
+    #     app.is_dead = True
+    #     return ("DEAD", 503)
     try:
         for upload in request.files.values():
             file_name = FileName(upload.filename)
