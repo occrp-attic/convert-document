@@ -66,9 +66,9 @@ def convert_file(source_file):
 
 @app.route("/")
 def info():
-    acquired = lock.acquire(timeout=2)
-    if not acquired:
-        return ("BUSY", 503)
+    # acquired = lock.acquire(timeout=2)
+    # if not acquired:
+    #     return ("BUSY", 503)
     return ("OK", 200)
 
 
@@ -90,10 +90,9 @@ def convert():
             if not file_name.has_extension:
                 file_name.extension = mimetype_extension(mime_type)
             fd, upload_file = mkstemp(suffix=file_name.safe())
+            os.close(fd)
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
-            fh = os.fdopen(fd, mode='wb')
-            upload.save(fh)
-            fh.close()
+            upload.save(upload_file)
             out_file = convert_file(upload_file)
             if os.path.exists(upload_file):
                 os.unlink(upload_file)
