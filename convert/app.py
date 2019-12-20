@@ -28,8 +28,6 @@ class ShutdownMiddleware:
         self.application = application
 
     def post_request(self):
-        if os.path.exists(OUT_PATH):
-            os.unlink(OUT_PATH)
         if app.is_dead:
             os._exit(0)
 
@@ -46,10 +44,14 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
 def convert_file(source_file):
+    try:
+        os.unlink(OUT_PATH)
+    except OSError:
+        pass
     args = ['unoconv',
             '-f', 'pdf',
             '-vvv',
-            '--timeout', str(TIMEOUT + 1),
+            '--timeout', str(TIMEOUT + 5),
             '-o', OUT_PATH,
             '-i', 'MacroExecutionMode=0',
             '-i', 'ReadOnly=1',
