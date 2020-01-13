@@ -37,9 +37,9 @@ USER app
 CMD ["gunicorn", \
      "--threads", "3", \
      "--bind", "0.0.0.0:3000", \
-     "--max-requests", "30", \
+     "--max-requests", "5000", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "--timeout", "300", \
-     "--graceful-timeout", "300", \
+     "--timeout", "600", \
+     "--graceful-timeout", "500", \
      "convert.app:app"]
