@@ -61,7 +61,11 @@ def convert_file(source_file):
             source_file]
     err = subprocess.call(args, timeout=TIMEOUT)
     log.debug("LibreOffice exit code: %s", err)
-    if err != 0 or not os.path.exists(OUT_PATH):
+    if err != 0:
+        raise RuntimeError()
+    if not os.path.exists(OUT_PATH):
+        raise RuntimeError()
+    if os.stat(OUT_PATH).st_size == 0:
         raise RuntimeError()
     return OUT_PATH
 
@@ -79,6 +83,7 @@ def convert():
     acquired = lock.acquire(timeout=5)
     if not acquired:
         return ("BUSY", 503)
+    upload_file = None
     # if listener.poll() is not None:
     #     log.error("Listener has terminated.")
     #     app.is_dead = True
@@ -96,9 +101,9 @@ def convert():
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
             out_file = convert_file(upload_file)
-            if os.path.exists(upload_file):
-                os.unlink(upload_file)
-            return send_file(out_file, mimetype='application/pdf')
+            return send_file(out_file,
+                             mimetype='application/pdf',
+                             attachment_filename='output.pdf')
     except RuntimeError:
         app.is_dead = True
         return ('The document could not be converted to PDF.', 400)
@@ -107,6 +112,8 @@ def convert():
         app.is_dead = True
         return ('Processing the document timed out.', 400)
     finally:
+        if upload_file is not None and os.path.exists(upload_file):
+            os.unlink(upload_file)
         lock.release()
 
 
