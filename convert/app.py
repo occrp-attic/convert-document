@@ -104,6 +104,7 @@ def convert():
             return send_file(out_file,
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
+        return ('No file uploaded', 400)
     except RuntimeError:
         app.is_dead = True
         return ('The document could not be converted to PDF.', 400)
