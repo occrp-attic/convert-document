@@ -29,7 +29,7 @@ class ShutdownMiddleware:
 
     def post_request(self):
         if app.is_dead:
-            os._exit(0)
+            os._exit(127)
 
     def __call__(self, environ, after_response):
         iterator = self.application(environ, after_response)
@@ -72,22 +72,15 @@ def convert_file(source_file):
 
 @app.route("/")
 def info():
-    # acquired = lock.acquire(timeout=2)
-    # if not acquired:
-    #     return ("BUSY", 503)
     return ("OK", 200)
 
 
 @app.route("/convert", methods=['POST'])
 def convert():
-    acquired = lock.acquire(timeout=5)
+    acquired = lock.acquire(timeout=1)
     if not acquired:
         return ("BUSY", 503)
     upload_file = None
-    # if listener.poll() is not None:
-    #     log.error("Listener has terminated.")
-    #     app.is_dead = True
-    #     return ("DEAD", 503)
     try:
         for upload in request.files.values():
             file_name = FileName(upload.filename)
