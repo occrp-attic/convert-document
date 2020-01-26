@@ -73,9 +73,9 @@ def convert():
         app.is_dead = True
         return (str(ex), 400)
     except Exception as ex:
-        log.exception('System error')
         app.is_dead = True
-        return (str(ex), 503)
+        log.error('Error: %s', ex)
+        return ('FAIL', 503)
     finally:
         if upload_file is not None and os.path.exists(upload_file):
             os.unlink(upload_file)

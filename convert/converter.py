@@ -5,6 +5,8 @@ import logging
 import subprocess
 from threading import Timer
 from com.sun.star.beans import PropertyValue
+from com.sun.star.lang import DisposedException
+from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 
 CONNECTION = "socket,host=localhost,port=2002;urp;StarOffice.ComponentContext"  # noqa
@@ -81,7 +83,12 @@ class Converter(object):
                 "ReadOnly": True,
                 "Overwrite": True,
             })
-            doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
+            try:
+                doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
+            except IllegalArgumentException:
+                raise ConversionFailure("Cannot open document.")
+            except DisposedException:
+                raise SystemFailure("Bridge is disposed.")
             if doc is None:
                 raise ConversionFailure("Cannot open document.")
 
