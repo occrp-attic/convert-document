@@ -22,8 +22,6 @@ ENV LANG='en_US.UTF-8' \
 RUN groupadd -g 1000 -r app \
     && useradd -m -u 1000 -s /bin/false -g app app
 
-ADD https://raw.githubusercontent.com/unoconv/unoconv/0.8.2/unoconv /usr/bin/unoconv
-RUN chmod a+rx /usr/bin/unoconv
 RUN ln -s /usr/bin/python3 /usr/bin/python
 COPY requirements.txt /tmp/
 RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
@@ -37,7 +35,7 @@ USER app
 CMD ["gunicorn", \
      "--threads", "3", \
      "--bind", "0.0.0.0:3000", \
-     "--max-requests", "5000", \
+     "--max-requests", "100", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "--timeout", "600", \

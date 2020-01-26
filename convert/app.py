@@ -1,26 +1,20 @@
 import os
-import time
 import logging
 import traceback
-import subprocess
 from threading import RLock
 from flask import Flask, request, send_file
 from tempfile import mkstemp
 from werkzeug.wsgi import ClosingIterator
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
+from convert.converter import Converter, ConversionFailure
 from convert.formats import load_mime_extensions
 
-TIMEOUT = 90
-OUT_PATH = '/tmp/output.pdf'
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('convert')
 lock = RLock()
 extensions = load_mime_extensions()
-listener = subprocess.Popen(['unoconv', '--listener', '-vvv'])
-time.sleep(2)
-app = Flask("convert")
-app.is_dead = False
+converter = Converter()
 
 
 class ShutdownMiddleware:
@@ -40,45 +34,22 @@ class ShutdownMiddleware:
             return iterator
 
 
+app = Flask("convert")
+app.is_dead = False
 app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
-
-
-def convert_file(source_file):
-    try:
-        os.unlink(OUT_PATH)
-    except OSError:
-        pass
-    args = ['unoconv',
-            '-f', 'pdf',
-            '-vvv',
-            '--timeout', str(TIMEOUT + 5),
-            '-o', OUT_PATH,
-            '-i', 'MacroExecutionMode=0',
-            '-i', 'ReadOnly=1',
-            '-e', 'SelectPdfVersion=1',
-            '-e', 'MaxImageResolution=300',
-            # '--no-launch',
-            source_file]
-    err = subprocess.call(args, timeout=TIMEOUT)
-    log.debug("LibreOffice exit code: %s", err)
-    if err != 0:
-        raise RuntimeError()
-    if not os.path.exists(OUT_PATH):
-        raise RuntimeError()
-    if os.stat(OUT_PATH).st_size == 0:
-        raise RuntimeError()
-    return OUT_PATH
 
 
 @app.route("/")
 def info():
+    if app.is_dead:
+        return ("BUSY", 503)
     return ("OK", 200)
 
 
 @app.route("/convert", methods=['POST'])
 def convert():
     acquired = lock.acquire(timeout=1)
-    if not acquired:
+    if app.is_dead or not acquired:
         return ("BUSY", 503)
     upload_file = None
     try:
@@ -93,24 +64,21 @@ def convert():
             os.close(fd)
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
-            out_file = convert_file(upload_file)
-            return send_file(out_file,
+            converter.convert_file(upload_file)
+            return send_file(converter.OUT,
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
-    except RuntimeError:
+    except ConversionFailure as ex:
         app.is_dead = True
-        return ('The document could not be converted to PDF.', 400)
-    except subprocess.TimeoutExpired:
-        log.error("Timeout exceeded: %s", upload.filename)
+        return (str(ex), 400)
+    except Exception as ex:
+        log.exception('System error')
         app.is_dead = True
-        return ('Processing the document timed out.', 400)
+        return (str(ex), 503)
     finally:
         if upload_file is not None and os.path.exists(upload_file):
             os.unlink(upload_file)
+        if os.path.exists(converter.OUT):
+            os.unlink(converter.OUT)
         lock.release()
-
-
-if __name__ == '__main__':
-    # app.run(debug=True, port=3000, host='0.0.0.0')
-    app.run(port=3000, host='0.0.0.0', threaded=True)
