@@ -51,6 +51,7 @@ def convert():
     acquired = lock.acquire(timeout=1)
     if app.is_dead or not acquired:
         return ("BUSY", 503)
+    timeout = int(request.args.get('timeout', 100))
     upload_file = None
     try:
         for upload in request.files.values():
@@ -64,7 +65,7 @@ def convert():
             os.close(fd)
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
-            converter.convert_file(upload_file)
+            converter.convert_file(upload_file, timeout)
             return send_file(converter.OUT,
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
