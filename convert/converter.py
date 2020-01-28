@@ -48,8 +48,8 @@ class Converter(object):
         if self.process is None or self.process.poll() is not None:
             self.process.kill()
         log.error('Document conversion timed out.')
-        time.sleep(5)
-        os._exit(42)
+        # time.sleep(5)
+        # os._exit(42)
 
     def connect(self):
         # Check if the LibreOffice process has an exit code

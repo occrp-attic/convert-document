@@ -5,6 +5,7 @@ from threading import RLock
 from flask import Flask, request, send_file
 from tempfile import mkstemp
 from werkzeug.wsgi import ClosingIterator
+from werkzeug.exceptions import HTTPException
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
 from convert.converter import Converter, ConversionFailure
@@ -70,6 +71,8 @@ def convert():
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
+    except HTTPException:
+        raise
     except ConversionFailure as ex:
         app.is_dead = True
         return (str(ex), 400)
