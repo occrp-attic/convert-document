@@ -66,7 +66,7 @@ class Converter(object):
                                             stdout=None,
                                             stderr=None)
 
-        for attempt in range(7):
+        for attempt in range(12):
             try:
                 context = self.resolver.resolve('uno:%s' % CONNECTION)
                 return self._svc_create(context, 'com.sun.star.frame.Desktop')
