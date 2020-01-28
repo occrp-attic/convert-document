@@ -38,7 +38,7 @@ USER app
 CMD ["gunicorn", \
      "--threads", "3", \
      "--bind", "0.0.0.0:3000", \
-     "--max-requests", "100", \
+     # "--max-requests", "100", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "--timeout", "600", \

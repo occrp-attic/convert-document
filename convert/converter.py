@@ -104,12 +104,15 @@ class Converter(object):
             except AttributeError:
                 pass
 
-            output_url = uno.systemPathToFileUrl(self.OUT)
-            prop = self.get_output_properties(doc)
-            doc.storeToURL(output_url, prop)
-            doc.dispose()
-            doc.close(True)
-            del doc
+            try:
+                output_url = uno.systemPathToFileUrl(self.OUT)
+                prop = self.get_output_properties(doc)
+                doc.storeToURL(output_url, prop)
+                doc.dispose()
+                doc.close(True)
+                del doc
+            except DisposedException:
+                raise ConversionFailure('Cannot generate PDF.')
 
             stat = os.stat(self.OUT)
             if stat.st_size == 0 or not os.path.exists(self.OUT):
