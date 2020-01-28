@@ -45,11 +45,15 @@ class Converter(object):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
     def terminate(self):
+        # This gets executed in its own thread after timeout seconds.
         if self.process is None or self.process.poll() is not None:
             self.process.kill()
         log.error('Document conversion timed out.')
-        # time.sleep(5)
-        # os._exit(42)
+        # Give the LibreOffice process some time to shut down and the
+        # request thread the opportunity to return a correct 400 HTTP
+        # response. If that's not going to happen, quit hard.
+        time.sleep(10)
+        os._exit(42)
 
     def connect(self):
         # Check if the LibreOffice process has an exit code
@@ -62,7 +66,7 @@ class Converter(object):
                                             stdout=None,
                                             stderr=None)
 
-        for attempt in range(10):
+        for attempt in range(7):
             try:
                 context = self.resolver.resolve('uno:%s' % CONNECTION)
                 return self._svc_create(context, 'com.sun.star.frame.Desktop')
@@ -91,6 +95,7 @@ class Converter(object):
                 raise ConversionFailure('Cannot open document.')
             except DisposedException:
                 raise SystemFailure('Bridge is disposed.')
+
             if doc is None:
                 raise ConversionFailure('Cannot open document.')
 
