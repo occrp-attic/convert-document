@@ -49,10 +49,6 @@ class Converter(object):
         if self.process is None or self.process.poll() is not None:
             self.process.kill()
         log.error('Document conversion timed out.')
-        # Give the LibreOffice process some time to shut down and the
-        # request thread the opportunity to return a correct 400 HTTP
-        # response. If that's not going to happen, quit hard.
-        time.sleep(10)
         os._exit(42)
 
     def connect(self):
