@@ -57,6 +57,13 @@ LIBREOFFICE_EXPORT_TYPES = {
         LIBREOFFICE_DOC_FAMILIES[3]: {"FilterName": "impress8"}
     },
     "pptx": {
-        LIBREOFFICE_DOC_FAMILIES[3]: {"FilterName": "Impress MS PowerPoint 2007 XML"}
+        LIBREOFFICE_DOC_FAMILIES[3]: {
+            "FilterName": "Impress MS PowerPoint 2007 XML"}
     }
+}
+
+OUTPUT_MIME_TYPES = {
+    "pdf": 'application/pdf',
+    "png": 'image/png',
+    "jpg": 'image/jpeg'
 }

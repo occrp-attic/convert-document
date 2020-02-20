@@ -10,6 +10,7 @@ from pantomime import FileName, normalize_mimetype, mimetype_extension
 
 from convert.converter import Converter, ConversionFailure
 from convert.formats import load_mime_extensions
+from .document_types import *
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('convert')
@@ -52,8 +53,12 @@ def convert():
     acquired = lock.acquire(timeout=1)
     if app.is_dead or not acquired:
         return ("BUSY", 503)
-    timeout = int(request.args.get('timeout', 100))
+    timeout = int(request.args.get('timeout', 1000))
     upload_file = None
+    output_format = request.form['format']
+    print('Output format: ', output_format)
+    if not output_format in LIBREOFFICE_EXPORT_TYPES:
+        return ("%s format is not supported" % (output_format), 400)
     try:
         for upload in request.files.values():
             file_name = FileName(upload.filename)
@@ -64,13 +69,16 @@ def convert():
                 file_name.extension = mimetype_extension(mime_type)
             fd, upload_file = mkstemp(suffix=file_name.safe())
             os.close(fd)
-            log.info('PDF convert: %s [%s]', upload_file, mime_type)
+            log.info('Convert: %s [%s] --> to: %s',
+                     upload_file, mime_type, output_format)
             upload.save(upload_file)
-            converter.convert_file(upload_file, 'png', timeout)
-            output_filename = "%s.png" % (converter.OUT)
+            converter.convert_file(upload_file, output_format, timeout)
+            output_filename = "%s.%s" % (converter.OUT, output_format)
+            log.info("Send file %s [Mime-type: %s]" %
+                     (output_filename, OUTPUT_MIME_TYPES[output_format]))
             return send_file(output_filename,
-                             mimetype='application/pdf',
-                             attachment_filename='output.pdf')
+                             mimetype=OUTPUT_MIME_TYPES[output_format],
+                             attachment_filename=output_filename)
         return ('No file uploaded', 400)
     except HTTPException:
         raise

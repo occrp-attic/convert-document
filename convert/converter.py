@@ -108,12 +108,8 @@ class Converter(object):
 
             output_filename = "%s.%s" % (self.OUT, output_format)
             try:
-                print("output_format", output_format)
-                print("output_filename", output_filename)
                 output_url = uno.systemPathToFileUrl(output_filename)
-                print("output_url", output_url)
                 prop = self.get_output_properties(doc, output_format)
-                print('prop', prop)
                 doc.storeToURL(output_url, prop)
                 doc.dispose()
                 doc.close(True)
