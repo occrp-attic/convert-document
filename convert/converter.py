@@ -8,6 +8,7 @@ from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException
 from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
+from .document_types import *
 
 CONNECTION = 'socket,host=localhost,port=2002;urp;StarOffice.ComponentContext'  # noqa
 COMMAND = 'soffice --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
@@ -27,7 +28,7 @@ class Converter(object):
     """Launch a background instance of LibreOffice and convert documents
     to PDF using it's filters.
     """
-    OUT = '/tmp/output.pdf'
+    OUT = '/tmp/output'
     PDF_FILTERS = (
         ('com.sun.star.text.GenericTextDocument', 'writer_pdf_Export'),
         ('com.sun.star.text.WebDocument', 'writer_web_pdf_Export'),
@@ -70,7 +71,7 @@ class Converter(object):
                 time.sleep(1)
         raise SystemFailure('Conversion timed out.')
 
-    def convert_file(self, file_name, timeout):
+    def convert_file(self, file_name, output_format, timeout):
         timer = Timer(timeout, self.terminate)
         timer.start()
         try:
@@ -105,9 +106,14 @@ class Converter(object):
             except AttributeError:
                 pass
 
+            output_filename = "%s.%s" % (self.OUT, output_format)
             try:
-                output_url = uno.systemPathToFileUrl(self.OUT)
-                prop = self.get_output_properties(doc)
+                print("output_format", output_format)
+                print("output_filename", output_filename)
+                output_url = uno.systemPathToFileUrl(output_filename)
+                print("output_url", output_url)
+                prop = self.get_output_properties(doc, output_format)
+                print('prop', prop)
                 doc.storeToURL(output_url, prop)
                 doc.dispose()
                 doc.close(True)
@@ -115,22 +121,38 @@ class Converter(object):
             except DisposedException:
                 raise ConversionFailure('Cannot generate PDF.')
 
-            stat = os.stat(self.OUT)
-            if stat.st_size == 0 or not os.path.exists(self.OUT):
+            stat = os.stat(output_filename)
+            if stat.st_size == 0 or not os.path.exists(output_filename):
                 raise ConversionFailure('Cannot generate PDF.')
         finally:
             timer.cancel()
 
-    def get_output_properties(self, doc):
-        for (service, pdf) in self.PDF_FILTERS:
-            if doc.supportsService(service):
-                return self.property_tuple({
-                    'FilterName': pdf,
-                    'Overwrite': True,
-                    'MaxImageResolution': 300,
-                    'SelectPdfVersion': 2,
-                })
-        raise ConversionFailure('PDF export not supported.')
+    def get_output_properties(self, doc, output_format):
+        output_properties = {'Overwrite': True}
+        try:
+            doc_family = self.get_document_family(doc)
+            output_properties.update(
+                LIBREOFFICE_EXPORT_TYPES[output_format][doc_family])
+            return self.property_tuple(output_properties)
+        except:
+            raise ConversionFailure('PDF export not supported.')
+
+    def get_document_family(self, doc):
+        try:
+            if doc.supportsService("com.sun.star.text.GenericTextDocument"):
+                return LIBREOFFICE_DOC_FAMILIES[0]
+            if doc.supportsService("com.sun.star.text.WebDocument"):
+                return LIBREOFFICE_DOC_FAMILIES[1]
+            if doc.supportsService("com.sun.star.sheet.SpreadsheetDocument"):
+                return LIBREOFFICE_DOC_FAMILIES[2]
+            if doc.supportsService("com.sun.star.presentation.PresentationDocument"):
+                return LIBREOFFICE_DOC_FAMILIES[3]
+            if doc.supportsService("com.sun.star.drawing.DrawingDocument"):
+                return LIBREOFFICE_DOC_FAMILIES[4]
+        except:
+            pass
+
+        return None
 
     def property_tuple(self, propDict):
         properties = []

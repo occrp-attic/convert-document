@@ -66,8 +66,9 @@ def convert():
             os.close(fd)
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
-            converter.convert_file(upload_file, timeout)
-            return send_file(converter.OUT,
+            converter.convert_file(upload_file, 'png', timeout)
+            output_filename = "%s.png" % (converter.OUT)
+            return send_file(output_filename,
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
