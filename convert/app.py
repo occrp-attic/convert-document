@@ -55,8 +55,7 @@ def convert():
         return ("BUSY", 503)
     timeout = int(request.args.get('timeout', 1000))
     upload_file = None
-    output_format = request.form['format']
-    print('Output format: ', output_format)
+    output_format = request.form.get('format')
     if not output_format in LIBREOFFICE_EXPORT_TYPES:
         return ("%s format is not supported" % (output_format), 400)
     try:
@@ -69,8 +68,8 @@ def convert():
                 file_name.extension = mimetype_extension(mime_type)
             fd, upload_file = mkstemp(suffix=file_name.safe())
             os.close(fd)
-            log.info('Convert: %s [%s] --> to: %s',
-                     upload_file, mime_type, output_format)
+            log.info('Convert to %s: %s [%s]',
+                     output_format, upload_file, mime_type)
             upload.save(upload_file)
             converter.convert_file(upload_file, output_format, timeout)
             output_filename = "%s.%s" % (converter.OUT, output_format)
