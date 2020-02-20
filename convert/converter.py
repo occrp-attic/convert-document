@@ -131,7 +131,8 @@ class Converter(object):
                 LIBREOFFICE_EXPORT_TYPES[output_format][doc_family])
             return self.property_tuple(output_properties)
         except:
-            raise ConversionFailure('PDF export not supported.')
+            raise ConversionFailure(
+                'Export %s from this file not supported.' % output_format)
 
     def get_document_family(self, doc):
         try:
