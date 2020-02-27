@@ -41,20 +41,27 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
 @app.route("/")
-def info():
+@app.route("/healthz")
+def healthz():
     if app.is_dead:
+        return ("DEAD", 500)
+    acquired = lock.acquire(timeout=5)
+    if not acquired:
         return ("BUSY", 503)
+    lock.release()
     return ("OK", 200)
 
 
 @app.route("/convert", methods=['POST'])
 def convert():
-    acquired = lock.acquire(timeout=1)
-    if app.is_dead or not acquired:
-        return ("BUSY", 503)
-    timeout = int(request.args.get('timeout', 100))
+    if app.is_dead:
+        return ("DEAD", 500)
     upload_file = None
+    acquired = lock.acquire(timeout=1)
+    if not acquired:
+        return ("BUSY", 503)
     try:
+        timeout = int(request.args.get('timeout', 100))
         for upload in request.files.values():
             file_name = FileName(upload.filename)
             mime_type = normalize_mimetype(upload.mimetype)
