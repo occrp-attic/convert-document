@@ -16,10 +16,16 @@ log = logging.getLogger(__name__)
 
 
 class ConversionFailure(Exception):
+    # A failure related to the content or structure of the document
+    # given, which is expected to re-occur with consecutive attempts
+    # to process the document.
     pass
 
 
 class SystemFailure(Exception):
+    # A failure of the service that lead to a failed conversion of
+    # the document which may or may not re-occur when the document
+    # is processed again.
     pass
 
 
@@ -45,7 +51,7 @@ class Converter(object):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
     def terminate(self):
-        # This gets executed in its own thread after timeout seconds.
+        # This gets executed in its own thread after `timeout` seconds.
         if self.process is None or self.process.poll() is not None:
             self.process.kill()
         log.error('Document conversion timed out.')
@@ -78,14 +84,14 @@ class Converter(object):
             if desktop is None:
                 raise SystemFailure('Cannot connect to LibreOffice.')
 
-            url = uno.systemPathToFileUrl(file_name)
-            props = self.property_tuple({
-                'Hidden': True,
-                'MacroExecutionMode': 0,
-                'ReadOnly': True,
-                'Overwrite': True,
-            })
             try:
+                url = uno.systemPathToFileUrl(file_name)
+                props = self.property_tuple({
+                    'Hidden': True,
+                    'MacroExecutionMode': 0,
+                    'ReadOnly': True,
+                    'Overwrite': True,
+                })
                 doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
             except IllegalArgumentException:
                 raise ConversionFailure('Cannot open document.')
@@ -96,16 +102,16 @@ class Converter(object):
                 raise ConversionFailure('Cannot open document.')
 
             try:
-                doc.ShowChanges = False
-            except AttributeError:
-                pass
+                try:
+                    doc.ShowChanges = False
+                except AttributeError:
+                    pass
 
-            try:
-                doc.refresh()
-            except AttributeError:
-                pass
+                try:
+                    doc.refresh()
+                except AttributeError:
+                    pass
 
-            try:
                 output_url = uno.systemPathToFileUrl(self.OUT)
                 prop = self.get_output_properties(doc)
                 doc.storeToURL(output_url, prop)
