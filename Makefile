@@ -1,6 +1,12 @@
+TAG=4
 
 build:
-	docker build --cache-from alephdata/convert-document -t alephdata/convert-document .
+	docker build -t alephdata/convert-document:$(TAG) .
+
+push:
+	docker push alephdata/convert-document:$(TAG)
+	docker tag alephdata/convert-document:$(TAG) alephdata/convert-document:latest
+	docker push alephdata/convert-document:latest
 
 shell: build
 	docker run -ti -v $(PWD):/convert -p 3000:3000 alephdata/convert-document bash

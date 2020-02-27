@@ -1,8 +1,7 @@
 name: build
 
 on:
-  push:
-    branch: master
+  push: {}
   schedule:
   - cron:  '20 4 * * *'
 
@@ -17,7 +16,9 @@ jobs:
     - name: Build docker image
       run: |
         docker build -t alephdata/convert-document:${GITHUB_SHA} .
+        make build
     - name: Push docker image (master)
       run: |
         docker login -u ${{ secrets.docker_user }} -p ${{ secrets.docker_password }}
         docker push alephdata/convert-document:${GITHUB_SHA}
+        make push
