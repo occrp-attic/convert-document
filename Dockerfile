@@ -2,7 +2,7 @@ FROM ubuntu:19.10
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get -qq -y update \
-    && apt-get -q -y install locales libreoffice libreoffice-writer \
+    && apt-get -q -y install locales libreoffice libreoffice-writer curl \
         libreoffice-impress libreoffice-common fonts-opensymbol hyphen-fr hyphen-de \
         hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra \
         fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf \
@@ -35,6 +35,10 @@ WORKDIR /convert
 RUN pip3 install -q -e .
 
 USER app
+
+HEALTHCHECK --interval=5s --timeout=7s --retries=100 \
+  CMD curl -f http://localhost:3000/healthz || exit 1
+
 CMD ["gunicorn", \
      "--threads", "3", \
      "--bind", "0.0.0.0:3000", \
@@ -44,3 +48,4 @@ CMD ["gunicorn", \
      "--timeout", "600", \
      "--graceful-timeout", "500", \
      "convert.app:app"]
+

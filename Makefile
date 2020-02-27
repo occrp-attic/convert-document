@@ -2,10 +2,10 @@ TAG=4
 
 build:
 	docker build -t alephdata/convert-document:$(TAG) .
+	docker tag alephdata/convert-document:$(TAG) alephdata/convert-document:latest
 
 push:
 	docker push alephdata/convert-document:$(TAG)
-	docker tag alephdata/convert-document:$(TAG) alephdata/convert-document:latest
 	docker push alephdata/convert-document:latest
 
 shell: build
