@@ -1,4 +1,4 @@
-TAG=4
+TAG=5
 
 build:
 	docker build -t alephdata/convert-document:$(TAG) .
