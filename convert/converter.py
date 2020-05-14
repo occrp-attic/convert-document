@@ -91,6 +91,9 @@ class Converter(object):
                     'MacroExecutionMode': 0,
                     'ReadOnly': True,
                     'Overwrite': True,
+                    'OpenNewView': True,
+                    'StartPresentation': False,
+                    'RepairPackage': False,
                 })
                 doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
             except IllegalArgumentException:
