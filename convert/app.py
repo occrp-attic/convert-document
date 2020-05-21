@@ -48,6 +48,12 @@ def healthz():
     acquired = lock.acquire(timeout=5)
     if not acquired:
         return ("BUSY", 503)
+    try:
+        converter.check_healthy()
+    except Exception as ex:
+        app.is_dead = True
+        log.error('Error: %s', ex)
+        return ('FAIL', 503)
     lock.release()
     return ("OK", 200)
 

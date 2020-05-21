@@ -4,13 +4,14 @@ import time
 import logging
 import subprocess
 from threading import Timer
+from tempfile import mkdtemp
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException
 from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 
-CONNECTION = 'socket,host=localhost,port=2002;urp;StarOffice.ComponentContext'  # noqa
-COMMAND = 'soffice --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
+CONNECTION = 'socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext'  # noqa
+COMMAND = 'soffice %s --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
 
 log = logging.getLogger(__name__)
 
@@ -60,8 +61,9 @@ class Converter(object):
     def connect(self):
         # Check if the LibreOffice process has an exit code
         if self.process is None or self.process.poll() is not None:
-            log.info('Starting headless LibreOffice...')
-            command = COMMAND % CONNECTION
+            env = '"-env:UserInstallation=file:///%s"' % mkdtemp()
+            command = COMMAND % (env, CONNECTION)
+            log.info('Starting headless LibreOffice: %s', command)
             self.process = subprocess.Popen(command,
                                             shell=True,
                                             stdin=None,
@@ -76,14 +78,21 @@ class Converter(object):
                 time.sleep(1)
         raise SystemFailure('Conversion timed out.')
 
+    def check_healthy(self):
+        desktop = self.connect()
+        if desktop is None:
+            raise SystemFailure('Cannot connect to LibreOffice.')
+        if desktop.getFrames().getCount() != 0:
+            raise SystemFailure('LibreOffice has stray frames.')
+        if desktop.getTasks() is not None:
+            raise SystemFailure('LibreOffice has stray tasks.')
+        return desktop
+
     def convert_file(self, file_name, timeout):
         timer = Timer(timeout, self.terminate)
         timer.start()
         try:
-            desktop = self.connect()
-            if desktop is None:
-                raise SystemFailure('Cannot connect to LibreOffice.')
-
+            desktop = self.check_healthy()
             try:
                 url = uno.systemPathToFileUrl(file_name)
                 props = self.property_tuple({

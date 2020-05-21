@@ -42,6 +42,6 @@ CMD ["gunicorn", \
      # "--max-requests", "100", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "--timeout", "600", \
-     "--graceful-timeout", "500", \
+     "--timeout", "6000", \
+     "--graceful-timeout", "5000", \
      "convert.app:app"]
