@@ -20,7 +20,7 @@ ENV LANG='en_US.UTF-8'
 # RUN apt-get -q -y install ttf-mscorefonts-installer
 
 RUN groupadd -g 1000 -r app \
-    && useradd -m -u 1000 -s /bin/false -g app app
+    && useradd -m -u 1000 -d /tmp -s /bin/false -g app app
 
 RUN ln -s /usr/bin/python3 /usr/bin/python
 COPY requirements.txt /tmp/
@@ -33,15 +33,14 @@ RUN pip3 install -q -e .
 
 USER app
 
-HEALTHCHECK --interval=5s --timeout=7s --retries=100 \
+HEALTHCHECK --interval=5s --timeout=5s --retries=100 \
   CMD curl -f http://localhost:3000/health/live || exit 1
 
 CMD ["gunicorn", \
-     "--threads", "3", \
+     "--worker-class", "gthread", \
+     "--threads", "4", \
      "--bind", "0.0.0.0:3000", \
-     # "--max-requests", "100", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "--timeout", "6000", \
-     "--graceful-timeout", "5000", \
      "convert.app:app"]

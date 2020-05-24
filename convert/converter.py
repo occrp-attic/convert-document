@@ -16,7 +16,8 @@ OUT_FILE = os.path.join(CONVERT_DIR, '/tmp/output.pdf')
 INSTANCE_DIR = os.path.join(gettempdir(), 'soffice')
 ENV = '"-env:UserInstallation=file:///%s"' % INSTANCE_DIR
 CONNECTION = 'socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext'  # noqa
-COMMAND = 'soffice %s --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
+COMMAND = 'soffice %s --nologo --headless --nocrashreport --nodefault --norestore --nolockcheck --invisible --accept="%s"'  # noqa
+COMMAND = COMMAND % (ENV, CONNECTION)
 
 log = logging.getLogger(__name__)
 
@@ -53,10 +54,12 @@ class Converter(object):
     )
 
     def __init__(self):
+        _flush_path(INSTANCE_DIR)
+        log.info('Starting LibreOffice: %s', COMMAND)
+        subprocess.Popen(COMMAND, shell=True)
+        time.sleep(2)
         self.local_context = uno.getComponentContext()
         self.resolver = self._svc_create(self.local_context, 'com.sun.star.bridge.UnoUrlResolver')  # noqa
-        self.process = None
-        self.start()
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
@@ -64,18 +67,6 @@ class Converter(object):
     def cleanup(self):
         # Check if the LibreOffice process has an exit code
         _flush_path(CONVERT_DIR)
-        self.start()
-
-    def start(self):
-        if self.process is None:
-            _flush_path(INSTANCE_DIR)
-            command = COMMAND % (ENV, CONNECTION)
-            log.info('Starting headless LibreOffice: %s', command)
-            self.process = subprocess.Popen(command,
-                                            shell=True,
-                                            stdin=None,
-                                            stdout=None,
-                                            stderr=None)
 
     def terminate(self):
         # This gets executed in its own thread after `timeout` seconds.
@@ -83,9 +74,6 @@ class Converter(object):
         os._exit(42)
 
     def connect(self):
-        if self.process.poll() is not None:
-            raise SystemFailure('Could not launch LibreOffice.')
-
         for attempt in range(12):
             try:
                 context = self.resolver.resolve('uno:%s' % CONNECTION)
@@ -100,7 +88,7 @@ class Converter(object):
                 return desktop
             except NoConnectException:
                 log.exception("No connection to LibreOffice")
-                time.sleep(1)
+                time.sleep(2)
         raise SystemFailure("No connection to LibreOffice")
 
     def convert_file(self, file_name, timeout):
@@ -156,13 +144,15 @@ class Converter(object):
             timer.cancel()
 
     def get_output_properties(self, doc):
+        # https://github.com/unoconv/unoconv/blob/master/doc/filters.adoc
         for (service, pdf) in self.PDF_FILTERS:
             if doc.supportsService(service):
                 return self.property_tuple({
                     'FilterName': pdf,
                     'Overwrite': True,
+                    'ReduceImageResolution': True,
                     'MaxImageResolution': 300,
-                    'SelectPdfVersion': 2,
+                    'SelectPdfVersion': 1,
                 })
         raise ConversionFailure('PDF export not supported.')
 

@@ -91,9 +91,9 @@ def convert():
     except ConversionFailure as ex:
         app.is_dead = True
         return (str(ex), 400)
-    except Exception as ex:
+    except Exception:
         app.is_dead = True
-        log.error('Error: %s', ex)
+        log.exception('System error')
         return ('FAIL', 503)
     finally:
         converter.cleanup()
