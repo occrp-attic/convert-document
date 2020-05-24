@@ -35,37 +35,38 @@ class ShutdownMiddleware:
             return iterator
 
 
-app = Flask("convert")
+app = Flask('convert')
 app.is_dead = False
 app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
-@app.route("/")
-@app.route("/healthz")
+@app.route('/')
+@app.route('/healthz')
 def healthz():
     if app.is_dead:
-        return ("DEAD", 500)
+        return ('DEAD', 503)
     acquired = lock.acquire(timeout=5)
     if not acquired:
-        return ("BUSY", 503)
+        return ('BUSY', 503)
     try:
         converter.check_healthy()
     except Exception as ex:
         app.is_dead = True
-        log.error('Error: %s', ex)
-        return ('FAIL', 503)
-    lock.release()
-    return ("OK", 200)
+        log.error('Health check error: %s', ex)
+        return ('DEAD', 503)
+    finally:
+        lock.release()
+    return ('OK', 200)
 
 
-@app.route("/convert", methods=['POST'])
+@app.route('/convert', methods=['POST'])
 def convert():
     if app.is_dead:
-        return ("DEAD", 500)
+        return ('DEAD', 503)
     upload_file = None
     acquired = lock.acquire(timeout=1)
     if not acquired:
-        return ("BUSY", 503)
+        return ('BUSY', 503)
     try:
         timeout = int(request.args.get('timeout', 100))
         for upload in request.files.values():
