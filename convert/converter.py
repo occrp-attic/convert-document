@@ -1,19 +1,30 @@
 import os
 import uno
 import time
+import shutil
 import logging
 import subprocess
 from threading import Timer
-from tempfile import mkdtemp
+from tempfile import gettempdir
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException
 from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 
+CONVERT_DIR = os.path.join(gettempdir(), 'convert')
+OUT_FILE = os.path.join(CONVERT_DIR, '/tmp/output.pdf')
+INSTANCE_DIR = os.path.join(gettempdir(), 'soffice')
+ENV = '"-env:UserInstallation=file:///%s"' % INSTANCE_DIR
 CONNECTION = 'socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext'  # noqa
 COMMAND = 'soffice %s --nologo --headless --nocrashreport --nodefault --nofirststartwizard --norestore --invisible --accept="%s"'  # noqa
 
 log = logging.getLogger(__name__)
+
+
+def _flush_path(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path)
 
 
 class ConversionFailure(Exception):
@@ -34,7 +45,6 @@ class Converter(object):
     """Launch a background instance of LibreOffice and convert documents
     to PDF using it's filters.
     """
-    OUT = '/tmp/output.pdf'
     PDF_FILTERS = (
         ('com.sun.star.text.GenericTextDocument', 'writer_pdf_Export'),
         ('com.sun.star.text.WebDocument', 'writer_web_pdf_Export'),
@@ -46,23 +56,20 @@ class Converter(object):
         self.local_context = uno.getComponentContext()
         self.resolver = self._svc_create(self.local_context, 'com.sun.star.bridge.UnoUrlResolver')  # noqa
         self.process = None
-        self.connect()
+        self.start()
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
-    def terminate(self):
-        # This gets executed in its own thread after `timeout` seconds.
-        if self.process is None or self.process.poll() is not None:
-            self.process.kill()
-        log.error('Document conversion timed out.')
-        os._exit(42)
-
-    def connect(self):
+    def cleanup(self):
         # Check if the LibreOffice process has an exit code
-        if self.process is None or self.process.poll() is not None:
-            env = '"-env:UserInstallation=file:///%s"' % mkdtemp()
-            command = COMMAND % (env, CONNECTION)
+        _flush_path(CONVERT_DIR)
+        self.start()
+
+    def start(self):
+        if self.process is None:
+            _flush_path(INSTANCE_DIR)
+            command = COMMAND % (ENV, CONNECTION)
             log.info('Starting headless LibreOffice: %s', command)
             self.process = subprocess.Popen(command,
                                             shell=True,
@@ -70,29 +77,37 @@ class Converter(object):
                                             stdout=None,
                                             stderr=None)
 
+    def terminate(self):
+        # This gets executed in its own thread after `timeout` seconds.
+        log.error('Document conversion timed out.')
+        os._exit(42)
+
+    def connect(self):
+        if self.process.poll() is not None:
+            raise SystemFailure('Could not launch LibreOffice.')
+
         for attempt in range(12):
             try:
                 context = self.resolver.resolve('uno:%s' % CONNECTION)
-                return self._svc_create(context, 'com.sun.star.frame.Desktop')
+                desktop = 'com.sun.star.frame.Desktop'
+                desktop = self._svc_create(context, desktop)
+                if desktop is None:
+                    raise SystemFailure('Cannot connect to LibreOffice.')
+                if desktop.getFrames().getCount() != 0:
+                    raise SystemFailure('LibreOffice has stray frames.')
+                if desktop.getTasks() is not None:
+                    raise SystemFailure('LibreOffice has stray tasks.')
+                return desktop
             except NoConnectException:
+                log.exception("No connection to LibreOffice")
                 time.sleep(1)
-        raise SystemFailure('Conversion timed out.')
-
-    def check_healthy(self):
-        desktop = self.connect()
-        if desktop is None:
-            raise SystemFailure('Cannot connect to LibreOffice.')
-        if desktop.getFrames().getCount() != 0:
-            raise SystemFailure('LibreOffice has stray frames.')
-        if desktop.getTasks() is not None:
-            raise SystemFailure('LibreOffice has stray tasks.')
-        return desktop
+        raise SystemFailure("No connection to LibreOffice")
 
     def convert_file(self, file_name, timeout):
         timer = Timer(timeout, self.terminate)
         timer.start()
         try:
-            desktop = self.check_healthy()
+            desktop = self.connect()
             try:
                 url = uno.systemPathToFileUrl(file_name)
                 props = self.property_tuple({
@@ -124,7 +139,7 @@ class Converter(object):
                 except AttributeError:
                     pass
 
-                output_url = uno.systemPathToFileUrl(self.OUT)
+                output_url = uno.systemPathToFileUrl(OUT_FILE)
                 prop = self.get_output_properties(doc)
                 doc.storeToURL(output_url, prop)
                 doc.dispose()
@@ -133,9 +148,10 @@ class Converter(object):
             except DisposedException:
                 raise ConversionFailure('Cannot generate PDF.')
 
-            stat = os.stat(self.OUT)
-            if stat.st_size == 0 or not os.path.exists(self.OUT):
+            stat = os.stat(OUT_FILE)
+            if stat.st_size == 0 or not os.path.exists(OUT_FILE):
                 raise ConversionFailure('Cannot generate PDF.')
+            return OUT_FILE
         finally:
             timer.cancel()
 

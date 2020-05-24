@@ -1,19 +1,19 @@
 import os
 import logging
 import traceback
-from threading import RLock
+from threading import Lock
 from flask import Flask, request, send_file
-from tempfile import mkstemp
 from werkzeug.wsgi import ClosingIterator
 from werkzeug.exceptions import HTTPException
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
 from convert.converter import Converter, ConversionFailure
+from convert.converter import CONVERT_DIR
 from convert.formats import load_mime_extensions
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('convert')
-lock = RLock()
+lock = Lock()
 extensions = load_mime_extensions()
 converter = Converter()
 
@@ -42,17 +42,18 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 @app.route('/')
 @app.route('/healthz')
-def healthz():
+@app.route('/health/live')
+def check_health():
     if app.is_dead:
         return ('DEAD', 503)
     acquired = lock.acquire(timeout=5)
     if not acquired:
         return ('BUSY', 503)
     try:
-        converter.check_healthy()
-    except Exception as ex:
+        converter.connect()
+    except Exception:
         app.is_dead = True
-        log.error('Health check error: %s', ex)
+        log.exception('Health check error')
         return ('DEAD', 503)
     finally:
         lock.release()
@@ -68,6 +69,7 @@ def convert():
     if not acquired:
         return ('BUSY', 503)
     try:
+        converter.cleanup()
         timeout = int(request.args.get('timeout', 100))
         for upload in request.files.values():
             file_name = FileName(upload.filename)
@@ -76,12 +78,11 @@ def convert():
                 file_name.extension = extensions.get(mime_type)
             if not file_name.has_extension:
                 file_name.extension = mimetype_extension(mime_type)
-            fd, upload_file = mkstemp(suffix=file_name.safe())
-            os.close(fd)
+            upload_file = os.path.join(CONVERT_DIR, file_name.safe())
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
-            converter.convert_file(upload_file, timeout)
-            return send_file(converter.OUT,
+            out_file = converter.convert_file(upload_file, timeout)
+            return send_file(out_file,
                              mimetype='application/pdf',
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
@@ -95,8 +96,5 @@ def convert():
         log.error('Error: %s', ex)
         return ('FAIL', 503)
     finally:
-        if upload_file is not None and os.path.exists(upload_file):
-            os.unlink(upload_file)
-        if os.path.exists(converter.OUT):
-            os.unlink(converter.OUT)
+        converter.cleanup()
         lock.release()

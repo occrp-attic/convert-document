@@ -34,7 +34,7 @@ RUN pip3 install -q -e .
 USER app
 
 HEALTHCHECK --interval=5s --timeout=7s --retries=100 \
-  CMD curl -f http://localhost:3000/healthz || exit 1
+  CMD curl -f http://localhost:3000/health/live || exit 1
 
 CMD ["gunicorn", \
      "--threads", "3", \
