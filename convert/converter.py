@@ -62,6 +62,7 @@ class Converter(object):
     def _stop(self):
         for proc in process_iter():
             if 'soffice' in proc.name():
+                log.warn("Killing existing process: %r", proc)
                 proc.kill()
                 proc.wait(timeout=10)
 
