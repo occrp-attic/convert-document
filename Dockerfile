@@ -3,7 +3,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get -qq -y update \
     && apt-get -q -y dist-upgrade \
-    && apt-get -q -y install locales libreoffice libreoffice-writer curl \
+    && apt-get -q -y install locales libreoffice libreoffice-writer psmisc curl \
         libreoffice-impress libreoffice-common fonts-opensymbol hyphen-fr hyphen-de \
         hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra \
         fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf \
@@ -22,18 +22,17 @@ ENV LANG='en_US.UTF-8'
 RUN groupadd -g 1000 -r app \
     && useradd -m -u 1000 -d /tmp -s /bin/false -g app app
 
-RUN ln -s /usr/bin/python3 /usr/bin/python
-COPY requirements.txt /tmp/
-RUN pip3 install --no-cache-dir -q -r /tmp/requirements.txt
 RUN mkdir -p /convert
-COPY setup.py /convert
-COPY convert /convert/convert
 WORKDIR /convert
+COPY requirements.txt /convert
+RUN pip3 install --no-cache-dir -q -r /convert/requirements.txt
+COPY setup.py /convert/
+COPY convert /convert/convert/
 RUN pip3 install -q -e .
 
 USER app
 
-HEALTHCHECK --interval=5s --timeout=5s --retries=100 \
+HEALTHCHECK --interval=10s --timeout=10s --retries=100 \
   CMD curl -f http://localhost:3000/health/live || exit 1
 
 CMD ["gunicorn", \

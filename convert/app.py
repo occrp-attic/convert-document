@@ -50,7 +50,8 @@ def check_health():
     if not acquired:
         return ('BUSY', 503)
     try:
-        converter.connect()
+        desktop = converter.connect()
+        converter.check_health(desktop)
     except Exception:
         app.is_dead = True
         log.exception('Health check error')
