@@ -45,19 +45,28 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 @app.route('/health/live')
 def check_health():
     if app.is_dead:
-        return ('DEAD', 503)
-    acquired = lock.acquire(timeout=5)
-    if not acquired:
-        return ('BUSY', 503)
+        return ('DEAD', 500)
+    acquired = lock.acquire(timeout=1)
     try:
         desktop = converter.connect()
-        converter.check_health(desktop)
+        if acquired:
+            converter.check_health(desktop)
+        return ('OK', 200)
     except Exception:
         app.is_dead = True
         log.exception('Health check error')
-        return ('DEAD', 503)
+        return ('DEAD', 500)
     finally:
-        lock.release()
+        if acquired:
+            lock.release()
+
+
+@app.route('/health/ready')
+def check_ready():
+    acquired = lock.acquire(timeout=1)
+    if not acquired:
+        return ('BUSY', 503)
+    lock.release()
     return ('OK', 200)
 
 
