@@ -7,7 +7,7 @@ from werkzeug.wsgi import ClosingIterator
 from werkzeug.exceptions import HTTPException
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
-from convert.converter import Converter, ConversionFailure
+from convert.converter import Converter, ConversionFailure, SystemFailure
 from convert.converter import CONVERT_DIR
 from convert.formats import load_mime_extensions
 
@@ -44,17 +44,18 @@ app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 @app.route('/healthz')
 @app.route('/health/live')
 def check_health():
-    if app.is_dead:
-        return ('DEAD', 500)
     acquired = lock.acquire(timeout=1)
     try:
         desktop = converter.connect()
         if acquired:
             converter.check_health(desktop)
         return ('OK', 200)
+    except SystemFailure:
+        app.is_dead = True
+        return ('DEAD', 500)
     except Exception:
         app.is_dead = True
-        log.exception('Health check error')
+        log.exception('Unknown error')
         return ('DEAD', 500)
     finally:
         if acquired:
@@ -63,7 +64,7 @@ def check_health():
 
 @app.route('/health/ready')
 def check_ready():
-    acquired = lock.acquire(timeout=1)
+    acquired = lock.acquire(timeout=2)
     if not acquired:
         return ('BUSY', 503)
     lock.release()
@@ -101,9 +102,13 @@ def convert():
     except ConversionFailure as ex:
         app.is_dead = True
         return (str(ex), 400)
+    except SystemFailure as ex:
+        app.is_dead = True
+        log.warn('Error: %s', ex)
+        return ('CRASH', 503)
     except Exception:
         app.is_dead = True
-        log.exception('System error')
+        log.exception('Unknown error')
         return ('FAIL', 503)
     finally:
         converter.cleanup()
