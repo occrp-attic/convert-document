@@ -12,6 +12,8 @@ from com.sun.star.lang import DisposedException
 from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 
+DESKTOP = 'com.sun.star.frame.Desktop'
+RESOLVER = 'com.sun.star.bridge.UnoUrlResolver'
 CONVERT_DIR = os.path.join(gettempdir(), 'convert')
 OUT_FILE = os.path.join(CONVERT_DIR, '/tmp/output.pdf')
 INSTANCE_DIR = os.path.join(gettempdir(), 'soffice')
@@ -56,8 +58,6 @@ class Converter(object):
 
     def __init__(self):
         self._start()
-        self.local_context = uno.getComponentContext()
-        self.resolver = self._svc_create(self.local_context, 'com.sun.star.bridge.UnoUrlResolver')  # noqa
 
     def _stop(self):
         for proc in process_iter():
@@ -74,23 +74,25 @@ class Converter(object):
         subprocess.Popen(COMMAND, shell=True)
         time.sleep(3)
 
-    def _svc_create(self, ctx, clazz):
-        return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
-
     def cleanup(self):
         _flush_path(CONVERT_DIR)
 
     def terminate(self):
         # This gets executed in its own thread after `timeout` seconds.
-        self._stop()
         log.error('Document conversion timed out.')
+        self._stop()
         os._exit(42)
+
+    def _svc_create(self, ctx, clazz):
+        return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
     def connect(self):
         for attempt in range(10):
             try:
-                context = self.resolver.resolve('uno:%s' % CONNECTION)
-                return self._svc_create(context, 'com.sun.star.frame.Desktop')
+                context = uno.getComponentContext()
+                resolver = self._svc_create(context, RESOLVER)
+                context = resolver.resolve('uno:%s' % CONNECTION)
+                return self._svc_create(context, DESKTOP)
             except NoConnectException:
                 log.warning("No connection to LibreOffice (%s)", attempt)
                 time.sleep(2)
