@@ -1,61 +1,37 @@
 import os
 import logging
-import traceback
 from threading import Lock
+from gunicorn.errors import HaltServer
 from flask import Flask, request, send_file
-from werkzeug.wsgi import ClosingIterator
-from werkzeug.exceptions import HTTPException
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
 from convert.converter import Converter, ConversionFailure, SystemFailure
 from convert.converter import CONVERT_DIR
 from convert.formats import load_mime_extensions
 
+PDF = 'application/pdf'
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('convert')
 lock = Lock()
 extensions = load_mime_extensions()
 converter = Converter()
-
-
-class ShutdownMiddleware:
-    def __init__(self, application):
-        self.application = application
-
-    def post_request(self):
-        if app.is_dead:
-            os._exit(127)
-
-    def __call__(self, environ, after_response):
-        iterator = self.application(environ, after_response)
-        try:
-            return ClosingIterator(iterator, [self.post_request])
-        except Exception:
-            traceback.print_exc()
-            return iterator
-
-
 app = Flask('convert')
-app.is_dead = False
-app.wsgi_app = ShutdownMiddleware(app.wsgi_app)
 
 
 @app.route('/')
 @app.route('/healthz')
 @app.route('/health/live')
 def check_health():
-    acquired = lock.acquire(timeout=1)
+    acquired = lock.acquire(timeout=2)
     try:
+        if acquired:
+            converter.prepare()
         desktop = converter.connect()
         if acquired:
             converter.check_health(desktop)
         return ('OK', 200)
-    except SystemFailure:
-        app.is_dead = True
-        return ('DEAD', 500)
     except Exception:
-        app.is_dead = True
-        log.exception('Unknown error')
+        converter.dispose()
         return ('DEAD', 500)
     finally:
         if acquired:
@@ -73,15 +49,13 @@ def check_ready():
 
 @app.route('/convert', methods=['POST'])
 def convert():
-    if app.is_dead:
-        return ('DEAD', 503)
     upload_file = None
     acquired = lock.acquire(timeout=1)
     if not acquired:
         return ('BUSY', 503)
     try:
-        converter.cleanup()
-        timeout = int(request.args.get('timeout', 100))
+        converter.prepare()
+        timeout = int(request.args.get('timeout', 7200))
         for upload in request.files.values():
             file_name = FileName(upload.filename)
             mime_type = normalize_mimetype(upload.mimetype)
@@ -93,23 +67,15 @@ def convert():
             log.info('PDF convert: %s [%s]', upload_file, mime_type)
             upload.save(upload_file)
             out_file = converter.convert_file(upload_file, timeout)
-            return send_file(out_file,
-                             mimetype='application/pdf',
+            return send_file(out_file, mimetype=PDF,
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
-    except HTTPException:
-        raise
     except ConversionFailure as ex:
-        app.is_dead = True
+        converter.dispose()
         return (str(ex), 400)
-    except SystemFailure as ex:
-        app.is_dead = True
+    except (SystemFailure, Exception) as ex:
+        converter.dispose()
         log.warn('Error: %s', ex)
         return ('CRASH', 503)
-    except Exception:
-        app.is_dead = True
-        log.exception('Unknown error')
-        return ('FAIL', 503)
     finally:
-        converter.cleanup()
         lock.release()
