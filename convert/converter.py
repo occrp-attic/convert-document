@@ -12,18 +12,21 @@ from com.sun.star.lang import DisposedException
 from com.sun.star.lang import IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 
+DESKTOP = 'com.sun.star.frame.Desktop'
+RESOLVER = 'com.sun.star.bridge.UnoUrlResolver'
 CONVERT_DIR = os.path.join(gettempdir(), 'convert')
 OUT_FILE = os.path.join(CONVERT_DIR, '/tmp/output.pdf')
 INSTANCE_DIR = os.path.join(gettempdir(), 'soffice')
 ENV = '"-env:UserInstallation=file:///%s"' % INSTANCE_DIR
 CONNECTION = 'socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext'  # noqa
-COMMAND = 'soffice %s --nologo --headless --nocrashreport --nodefault --norestore --nolockcheck --invisible --accept="%s"'  # noqa
-COMMAND = COMMAND % (ENV, CONNECTION)
+ACCEPT = '--accept="%s"' % CONNECTION
+COMMAND = ['/usr/bin/soffice', ENV, '--nologo', '--headless', '--nocrashreport', '--nodefault', '--norestore', '--nolockcheck', '--invisible', ACCEPT]  # noqa
+COMMAND = ' '.join(COMMAND)
 
 log = logging.getLogger(__name__)
 
 
-def _flush_path(path):
+def flush_path(path):
     if os.path.exists(path):
         shutil.rmtree(path)
     os.makedirs(path)
@@ -55,42 +58,52 @@ class Converter(object):
     )
 
     def __init__(self):
-        self._start()
-        self.local_context = uno.getComponentContext()
-        self.resolver = self._svc_create(self.local_context, 'com.sun.star.bridge.UnoUrlResolver')  # noqa
+        self.alive = False
+        self.start()
 
-    def _stop(self):
+    def kill(self):
         for proc in process_iter():
             if 'soffice' not in proc.name():
                 continue
             log.warn("Killing existing process: %r", proc)
             proc.kill()
             proc.wait()
+            time.sleep(2)
 
-    def _start(self):
-        self._stop()
-        _flush_path(INSTANCE_DIR)
+    def start(self):
+        self.kill()
+        flush_path(INSTANCE_DIR)
         log.info('Starting LibreOffice: %s', COMMAND)
         subprocess.Popen(COMMAND, shell=True)
         time.sleep(3)
+        self.alive = True
+
+    def prepare(self):
+        if not self.alive:
+            self.start()
+        flush_path(CONVERT_DIR)
+
+    def dispose(self):
+        log.error('Disposing of LibreOffice.')
+        self.alive = False
+        self.kill()
+
+    def terminate(self):
+        # This gets executed in its own thread after `timeout` seconds.
+        log.error('Document conversion timed out.')
+        self.dispose()
+        flush_path(CONVERT_DIR)
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
-    def cleanup(self):
-        _flush_path(CONVERT_DIR)
-
-    def terminate(self):
-        # This gets executed in its own thread after `timeout` seconds.
-        self._stop()
-        log.error('Document conversion timed out.')
-        os._exit(42)
-
     def connect(self):
         for attempt in range(10):
             try:
-                context = self.resolver.resolve('uno:%s' % CONNECTION)
-                return self._svc_create(context, 'com.sun.star.frame.Desktop')
+                context = uno.getComponentContext()
+                resolver = self._svc_create(context, RESOLVER)
+                context = resolver.resolve('uno:%s' % CONNECTION)
+                return self._svc_create(context, DESKTOP)
             except NoConnectException:
                 log.warning("No connection to LibreOffice (%s)", attempt)
                 time.sleep(2)
@@ -108,54 +121,57 @@ class Converter(object):
         timer = Timer(timeout, self.terminate)
         timer.start()
         try:
-            desktop = self.connect()
-            self.check_health(desktop)
-            try:
-                url = uno.systemPathToFileUrl(file_name)
-                props = self.property_tuple({
-                    'Hidden': True,
-                    'MacroExecutionMode': 0,
-                    'ReadOnly': True,
-                    'Overwrite': True,
-                    'OpenNewView': True,
-                    'StartPresentation': False,
-                    'RepairPackage': False,
-                })
-                doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
-            except IllegalArgumentException:
-                raise ConversionFailure('Cannot open document.')
-            except DisposedException:
-                raise SystemFailure('Bridge is disposed.')
-
-            if doc is None:
-                raise ConversionFailure('Cannot open document.')
-
-            try:
-                try:
-                    doc.ShowChanges = False
-                except AttributeError:
-                    pass
-
-                try:
-                    doc.refresh()
-                except AttributeError:
-                    pass
-
-                output_url = uno.systemPathToFileUrl(OUT_FILE)
-                prop = self.get_output_properties(doc)
-                doc.storeToURL(output_url, prop)
-                doc.dispose()
-                doc.close(True)
-                del doc
-            except DisposedException:
-                raise ConversionFailure('Cannot generate PDF.')
-
-            stat = os.stat(OUT_FILE)
-            if stat.st_size == 0 or not os.path.exists(OUT_FILE):
-                raise ConversionFailure('Cannot generate PDF.')
-            return OUT_FILE
+            return self._timed_convert_file(file_name)
         finally:
             timer.cancel()
+
+    def _timed_convert_file(self, file_name):
+        desktop = self.connect()
+        self.check_health(desktop)
+        try:
+            url = uno.systemPathToFileUrl(file_name)
+            props = self.property_tuple({
+                'Hidden': True,
+                'MacroExecutionMode': 0,
+                'ReadOnly': True,
+                'Overwrite': True,
+                'OpenNewView': True,
+                'StartPresentation': False,
+                'RepairPackage': False,
+            })
+            doc = desktop.loadComponentFromURL(url, '_blank', 0, props)
+        except IllegalArgumentException:
+            raise ConversionFailure('Cannot open document.')
+        except DisposedException:
+            raise SystemFailure('Bridge is disposed.')
+
+        if doc is None:
+            raise ConversionFailure('Cannot open document.')
+
+        try:
+            try:
+                doc.ShowChanges = False
+            except AttributeError:
+                pass
+
+            try:
+                doc.refresh()
+            except AttributeError:
+                pass
+
+            output_url = uno.systemPathToFileUrl(OUT_FILE)
+            prop = self.get_output_properties(doc)
+            doc.storeToURL(output_url, prop)
+            doc.dispose()
+            doc.close(True)
+            del doc
+        except DisposedException:
+            raise ConversionFailure('Cannot generate PDF.')
+
+        stat = os.stat(OUT_FILE)
+        if stat.st_size == 0 or not os.path.exists(OUT_FILE):
+            raise ConversionFailure('Cannot generate PDF.')
+        return OUT_FILE
 
     def get_output_properties(self, doc):
         # https://github.com/unoconv/unoconv/blob/master/doc/filters.adoc
