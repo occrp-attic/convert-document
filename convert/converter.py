@@ -62,13 +62,26 @@ class Converter(object):
         self.start()
 
     def kill(self):
-        for proc in process_iter():
-            if 'soffice' not in proc.name():
-                continue
-            log.warn("Killing existing process: %r", proc)
-            proc.kill()
-            proc.wait()
-            time.sleep(2)
+        while True:
+            # The Alfred Hitchcock approach to task management:
+            # https://www.youtube.com/watch?v=0WtDmbr9xyY
+            running = False
+            try:
+                for proc in process_iter():
+                    name = proc.name()
+                    if 'soffice' not in name and 'oosplash' not in name:
+                        continue
+                    running = True
+                    log.warn("Killing process: %r", name)
+                    proc.kill()
+                    proc.wait()
+            except Exception as exc:
+                log.warn("Failed to kill: %r (%s)", name, exc)
+                running = True
+            if not running:
+                self.alive = False
+                return
+            time.sleep(1)
 
     def start(self):
         self.kill()

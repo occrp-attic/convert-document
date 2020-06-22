@@ -1,7 +1,6 @@
 import os
 import logging
 from threading import Lock
-from gunicorn.errors import HaltServer
 from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
@@ -44,6 +43,14 @@ def check_ready():
     if not acquired:
         return ('BUSY', 503)
     lock.release()
+    return ('OK', 200)
+
+
+@app.route('/reset')
+def reset():
+    converter.start()
+    if lock.locked():
+        lock.release()
     return ('OK', 200)
 
 
