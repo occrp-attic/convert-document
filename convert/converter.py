@@ -62,30 +62,29 @@ class Converter(object):
         self.start()
 
     def kill(self):
+        log.info('Disposing of LibreOffice.')
         while True:
+            self.alive = False
             # The Alfred Hitchcock approach to task management:
             # https://www.youtube.com/watch?v=0WtDmbr9xyY
-            running = False
             try:
                 for proc in process_iter():
                     name = proc.name()
                     if 'soffice' not in name and 'oosplash' not in name:
                         continue
-                    running = True
+                    self.alive = True
                     log.warn("Killing process: %r", name)
                     proc.kill()
-                    proc.wait()
+                    time.sleep(2)
             except Exception as exc:
                 log.warn("Failed to kill: %r (%s)", name, exc)
-                running = True
-            if not running:
-                self.alive = False
+                self.alive = True
+            if not self.alive:
+                flush_path(INSTANCE_DIR)
                 return
-            time.sleep(1)
 
     def start(self):
         self.kill()
-        flush_path(INSTANCE_DIR)
         log.info('Starting LibreOffice: %s', COMMAND)
         subprocess.Popen(COMMAND, shell=True)
         time.sleep(3)
@@ -96,15 +95,10 @@ class Converter(object):
             self.start()
         flush_path(CONVERT_DIR)
 
-    def dispose(self):
-        log.error('Disposing of LibreOffice.')
-        self.alive = False
-        self.kill()
-
     def terminate(self):
         # This gets executed in its own thread after `timeout` seconds.
         log.error('Document conversion timed out.')
-        self.dispose()
+        self.kill()
         flush_path(CONVERT_DIR)
 
     def _svc_create(self, ctx, clazz):

@@ -30,7 +30,7 @@ def check_health():
             converter.check_health(desktop)
         return ('OK', 200)
     except Exception:
-        converter.dispose()
+        converter.kill()
         return ('DEAD', 500)
     finally:
         if acquired:
@@ -48,7 +48,7 @@ def check_ready():
 
 @app.route('/reset')
 def reset():
-    converter.start()
+    converter.kill()
     if lock.locked():
         lock.release()
     return ('OK', 200)
@@ -78,10 +78,10 @@ def convert():
                              attachment_filename='output.pdf')
         return ('No file uploaded', 400)
     except ConversionFailure as ex:
-        converter.dispose()
+        converter.kill()
         return (str(ex), 400)
     except (SystemFailure, Exception) as ex:
-        converter.dispose()
+        converter.kill()
         log.warn('Error: %s', ex)
         return ('CRASH', 503)
     finally:
