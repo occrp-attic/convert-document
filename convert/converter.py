@@ -81,6 +81,7 @@ class Converter(object):
                 self.alive = True
             if not self.alive:
                 flush_path(INSTANCE_DIR)
+                flush_path(CONVERT_DIR)
                 return
 
     def start(self):
@@ -99,7 +100,6 @@ class Converter(object):
         # This gets executed in its own thread after `timeout` seconds.
         log.error('Document conversion timed out.')
         self.kill()
-        flush_path(CONVERT_DIR)
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)

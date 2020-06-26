@@ -83,6 +83,6 @@ def convert():
     except (SystemFailure, Exception) as ex:
         converter.kill()
         log.warn('Error: %s', ex)
-        return ('CRASH', 503)
+        return (str(ex), 500)
     finally:
         lock.release()
