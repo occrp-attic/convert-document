@@ -26,6 +26,8 @@ def check_health():
         if acquired:
             converter.prepare()
         desktop = converter.connect()
+        # log.info('Frames: %s', desktop.getFrames().getCount())
+        # log.info('Tasks: %r', desktop.getTasks())
         if acquired:
             converter.check_health(desktop)
         return ('OK', 200)

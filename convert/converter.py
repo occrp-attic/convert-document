@@ -8,9 +8,11 @@ from threading import Timer
 from tempfile import gettempdir
 from psutil import process_iter
 from com.sun.star.beans import PropertyValue
-from com.sun.star.lang import DisposedException
-from com.sun.star.lang import IllegalArgumentException
+from com.sun.star.lang import DisposedException, IllegalArgumentException
 from com.sun.star.connection import NoConnectException
+from com.sun.star.io import IOException
+from com.sun.star.script import CannotConvertException
+from com.sun.star.uno import RuntimeException
 
 DESKTOP = 'com.sun.star.frame.Desktop'
 RESOLVER = 'com.sun.star.bridge.UnoUrlResolver'
@@ -28,8 +30,8 @@ log = logging.getLogger(__name__)
 
 def flush_path(path):
     if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
+        shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(path, exist_ok=True)
 
 
 class ConversionFailure(Exception):
@@ -80,12 +82,12 @@ class Converter(object):
                 log.warn("Failed to kill: %r (%s)", name, exc)
                 self.alive = True
             if not self.alive:
-                flush_path(INSTANCE_DIR)
-                flush_path(CONVERT_DIR)
                 return
 
     def start(self):
         self.kill()
+        flush_path(INSTANCE_DIR)
+        flush_path(CONVERT_DIR)
         log.info('Starting LibreOffice: %s', COMMAND)
         subprocess.Popen(COMMAND, shell=True)
         time.sleep(3)
@@ -125,7 +127,7 @@ class Converter(object):
             raise SystemFailure('LibreOffice has stray tasks.')
 
     def convert_file(self, file_name, timeout):
-        timer = Timer(timeout, self.terminate)
+        timer = Timer(timeout * 0.99, self.terminate)
         timer.start()
         try:
             return self._timed_convert_file(file_name)
@@ -135,6 +137,7 @@ class Converter(object):
     def _timed_convert_file(self, file_name):
         desktop = self.connect()
         self.check_health(desktop)
+        # log.debug("[%s] connected.", file_name)
         try:
             url = uno.systemPathToFileUrl(file_name)
             props = self.property_tuple({
@@ -155,6 +158,7 @@ class Converter(object):
         if doc is None:
             raise ConversionFailure('Cannot open document.')
 
+        # log.debug("[%s] opened.", file_name)
         try:
             try:
                 doc.ShowChanges = False
@@ -168,11 +172,15 @@ class Converter(object):
 
             output_url = uno.systemPathToFileUrl(OUT_FILE)
             prop = self.get_output_properties(doc)
+            # log.debug("[%s] refreshed.", file_name)
             doc.storeToURL(output_url, prop)
+            # log.debug("[%s] exported.", file_name)
             doc.dispose()
             doc.close(True)
             del doc
-        except DisposedException:
+            # log.debug("[%s] closed.", file_name)
+        except (DisposedException, IOException,
+                CannotConvertException, RuntimeException):
             raise ConversionFailure('Cannot generate PDF.')
 
         stat = os.stat(OUT_FILE)
@@ -182,16 +190,17 @@ class Converter(object):
 
     def get_output_properties(self, doc):
         # https://github.com/unoconv/unoconv/blob/master/doc/filters.adoc
+        filter_name = 'writer_pdf_Export'
         for (service, pdf) in self.PDF_FILTERS:
             if doc.supportsService(service):
-                return self.property_tuple({
-                    'FilterName': pdf,
-                    'Overwrite': True,
-                    'ReduceImageResolution': True,
-                    'MaxImageResolution': 300,
-                    'SelectPdfVersion': 1,
-                })
-        raise ConversionFailure('PDF export not supported.')
+                filter_name = pdf
+        return self.property_tuple({
+            'FilterName': filter_name,
+            'Overwrite': True,
+            'ReduceImageResolution': True,
+            'MaxImageResolution': 300,
+            'SelectPdfVersion': 1,
+        })
 
     def property_tuple(self, propDict):
         properties = []

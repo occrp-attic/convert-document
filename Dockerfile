@@ -41,5 +41,5 @@ CMD ["gunicorn", \
      "--bind", "0.0.0.0:3000", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "--timeout", "6000", \
+     "--timeout", "84600", \
      "convert.app:app"]
