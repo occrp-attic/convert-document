@@ -112,28 +112,28 @@ class Converter(object):
             if proc is not None:
                 proc.kill()
                 proc.wait(timeout=5)
+            self.clear()
         except TimeoutExpired:
             log.error("Hanging process: %r", proc)
+            self.clear()
             os._exit(23)
         except Exception as exc:
             log.error("Failed to kill: %r (%s)", proc, exc)
+            self.clear()
             os._exit(23)
 
     def clear(self):
         self.unlock()
-        flush_path(CONVERT_DIR)
 
-    def abort(self):
-        self.kill()
-        self.clear()
+    def reset(self):
+        flush_path(CONVERT_DIR)
 
     def start(self):
         flush_path(INSTANCE_DIR)
-        flush_path(CONVERT_DIR)
         log.info("Starting LibreOffice: %s", COMMAND)
         proc = subprocess.Popen(COMMAND, close_fds=True)
         log.info("PID: %s", proc.pid)
-        time.sleep(3)
+        time.sleep(2)
         log.info("Returncode: %s", proc.returncode)
 
     def _svc_create(self, ctx, clazz):
@@ -144,7 +144,7 @@ class Converter(object):
         if proc is None:
             self.start()
 
-        for attempt in range(10):
+        for attempt in range(15):
             try:
                 context = uno.getComponentContext()
                 resolver = self._svc_create(context, RESOLVER)
@@ -162,7 +162,7 @@ class Converter(object):
             raise SystemFailure("LibreOffice has stray tasks.")
 
     def convert_file(self, file_name, timeout):
-        timer = Timer(timeout * 0.99, self.abort)
+        timer = Timer(timeout, self.kill)
         timer.start()
         try:
             return self._timed_convert_file(file_name)

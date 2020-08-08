@@ -13,7 +13,6 @@ log = logging.getLogger("convert")
 extensions = load_mime_extensions()
 converter = Converter()
 app = Flask("convert")
-log.debug("INIT")
 
 
 @app.route("/")
@@ -49,25 +48,25 @@ def convert():
     if not converter.lock():
         return ("BUSY", 503)
     try:
+        converter.reset()
         timeout = int(request.args.get("timeout", 7200))
-        for upload in request.files.values():
-            file_name = FileName(upload.filename)
-            mime_type = normalize_mimetype(upload.mimetype)
-            if not file_name.has_extension:
-                file_name.extension = extensions.get(mime_type)
-            if not file_name.has_extension:
-                file_name.extension = mimetype_extension(mime_type)
-            upload_file = os.path.join(CONVERT_DIR, file_name.safe())
-            log.info("PDF convert: %s [%s]", upload_file, mime_type)
-            upload.save(upload_file)
-            out_file = converter.convert_file(upload_file, timeout)
-            return send_file(out_file, mimetype=PDF, attachment_filename="output.pdf")
-        return ("No file uploaded", 400)
+        upload = request.files.get("file")
+        file_name = FileName(upload.filename)
+        mime_type = normalize_mimetype(upload.mimetype)
+        if not file_name.has_extension:
+            file_name.extension = extensions.get(mime_type)
+        if not file_name.has_extension:
+            file_name.extension = mimetype_extension(mime_type)
+        upload_file = os.path.join(CONVERT_DIR, file_name.safe())
+        log.info("PDF convert: %s [%s]", upload_file, mime_type)
+        upload.save(upload_file)
+        out_file = converter.convert_file(upload_file, timeout)
+        return send_file(out_file, mimetype=PDF)
     except ConversionFailure as ex:
-        converter.abort()
+        converter.kill()
         return (str(ex), 400)
     except (SystemFailure, Exception) as ex:
-        converter.abort()
+        converter.kill()
         log.warn("Error: %s", ex)
         return (str(ex), 500)
     finally:
