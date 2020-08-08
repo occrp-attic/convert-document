@@ -19,22 +19,21 @@ RESOLVER = "com.sun.star.bridge.UnoUrlResolver"
 CONVERT_DIR = os.path.join(gettempdir(), "convert")
 OUT_FILE = os.path.join(CONVERT_DIR, "/tmp/output.pdf")
 INSTANCE_DIR = os.path.join(gettempdir(), "soffice")
-ENV = '"-env:UserInstallation=file:///%s"' % INSTANCE_DIR
-CONNECTION = "socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext"  # noqa
-ACCEPT = '--accept="%s"' % CONNECTION
+CONNECTION = (
+    "socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext"
+)
 COMMAND = [
     "/usr/bin/soffice",
-    ENV,
+    "-env:UserInstallation=file:///%s" % INSTANCE_DIR,
+    "-env:JFW_PLUGIN_DO_NOT_CHECK_ACCESSIBILITY=1",
     "--nologo",
     "--headless",
     "--nocrashreport",
-    "--nodefault",
+    # "--nodefault",
     "--norestore",
-    "--nolockcheck",
-    "--invisible",
-    ACCEPT,
-]  # noqa
-COMMAND = " ".join(COMMAND)
+    # "--invisible",
+    "--accept=%s" % CONNECTION,
+]
 
 log = logging.getLogger(__name__)
 
@@ -81,7 +80,7 @@ class Converter(object):
         # The Alfred Hitchcock approach to task management:
         # https://www.youtube.com/watch?v=0WtDmbr9xyY
         try:
-            for proc in process_iter():
+            for proc in process_iter(["cmdline"]):
                 name = " ".join(proc.cmdline())
                 if "soffice" not in name:
                     continue
@@ -89,7 +88,7 @@ class Converter(object):
                 proc.kill()
                 proc.wait(timeout=5)
         except TimeoutExpired:
-            log.error("Hanging process: %r (%s)", name)
+            log.error("Hanging process: %r", name)
             os._exit(23)
         except Exception as exc:
             log.error("Failed to kill: %r (%s)", name, exc)
@@ -100,8 +99,10 @@ class Converter(object):
         flush_path(INSTANCE_DIR)
         flush_path(CONVERT_DIR)
         log.info("Starting LibreOffice: %s", COMMAND)
-        subprocess.Popen(COMMAND, shell=True)
+        proc = subprocess.Popen(COMMAND, close_fds=True)
+        log.info("PID: %s", proc.pid)
         time.sleep(3)
+        log.info("Returncode: %s", proc.returncode)
         self.alive = True
 
     def prepare(self):
@@ -127,11 +128,10 @@ class Converter(object):
             except NoConnectException:
                 log.warning("No connection to LibreOffice (%s)", attempt)
                 time.sleep(2)
+        self.kill()
         raise SystemFailure("No connection to LibreOffice")
 
     def check_health(self, desktop):
-        if desktop is None:
-            raise SystemFailure("Cannot connect to LibreOffice.")
         if desktop.getFrames().getCount() != 0:
             raise SystemFailure("LibreOffice has stray frames.")
         if desktop.getTasks() is not None:
