@@ -15,4 +15,5 @@ run: build
 	docker run -p 3000:3000 --tmpfs /tmp --rm -ti alephdata/convert-document
 
 test:
+	rm out.pdf
 	curl -o out.pdf -F format=pdf -F 'file=@fixtures/agreement.docx' http://localhost:3000/convert

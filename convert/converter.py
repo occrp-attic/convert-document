@@ -6,7 +6,7 @@ import logging
 import subprocess
 from threading import Timer
 from tempfile import gettempdir
-from psutil import process_iter, TimeoutExpired
+from psutil import process_iter, pid_exists, TimeoutExpired
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException, IllegalArgumentException
 from com.sun.star.connection import NoConnectException
@@ -17,7 +17,8 @@ from com.sun.star.uno import RuntimeException
 DESKTOP = "com.sun.star.frame.Desktop"
 RESOLVER = "com.sun.star.bridge.UnoUrlResolver"
 CONVERT_DIR = os.path.join(gettempdir(), "convert")
-OUT_FILE = os.path.join(CONVERT_DIR, "/tmp/output.pdf")
+OUT_FILE = os.path.join(CONVERT_DIR, "output.pdf")
+LOCK_FILE = os.path.join(gettempdir(), "convert.lock")
 INSTANCE_DIR = os.path.join(gettempdir(), "soffice")
 CONNECTION = (
     "socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext"
@@ -72,30 +73,61 @@ class Converter(object):
 
     def __init__(self):
         self.alive = False
-        self.start()
+
+    def lock(self):
+        # Race conditions galore, but how likely
+        # are requests at that rate?
+        if self.is_locked:
+            return False
+        with open(LOCK_FILE, "w") as fh:
+            fh.write(str(os.getpid()))
+        return True
+
+    def unlock(self):
+        if os.path.exists(LOCK_FILE):
+            os.unlink(LOCK_FILE)
+
+    @property
+    def is_locked(self):
+        if not os.path.exists(LOCK_FILE):
+            return False
+        with open(LOCK_FILE, "r") as fh:
+            pid = int(fh.read())
+        if not pid_exists(pid):
+            return False
+        return True
+
+    def get_soffice(self):
+        for proc in process_iter(["cmdline"]):
+            name = " ".join(proc.cmdline())
+            if "soffice.bin" in name:
+                return proc
 
     def kill(self):
         log.info("Disposing of LibreOffice.")
-        self.alive = False
         # The Alfred Hitchcock approach to task management:
         # https://www.youtube.com/watch?v=0WtDmbr9xyY
         try:
-            for proc in process_iter(["cmdline"]):
-                name = " ".join(proc.cmdline())
-                if "soffice" not in name:
-                    continue
-                log.warn("Killing process: %r", proc)
+            proc = self.get_soffice()
+            if proc is not None:
                 proc.kill()
                 proc.wait(timeout=5)
         except TimeoutExpired:
-            log.error("Hanging process: %r", name)
+            log.error("Hanging process: %r", proc)
             os._exit(23)
         except Exception as exc:
-            log.error("Failed to kill: %r (%s)", name, exc)
+            log.error("Failed to kill: %r (%s)", proc, exc)
             os._exit(23)
 
-    def start(self):
+    def clear(self):
+        self.unlock()
+        flush_path(CONVERT_DIR)
+
+    def abort(self):
         self.kill()
+        self.clear()
+
+    def start(self):
         flush_path(INSTANCE_DIR)
         flush_path(CONVERT_DIR)
         log.info("Starting LibreOffice: %s", COMMAND)
@@ -103,22 +135,15 @@ class Converter(object):
         log.info("PID: %s", proc.pid)
         time.sleep(3)
         log.info("Returncode: %s", proc.returncode)
-        self.alive = True
-
-    def prepare(self):
-        if not self.alive:
-            self.start()
-        flush_path(CONVERT_DIR)
-
-    def terminate(self):
-        # This gets executed in its own thread after `timeout` seconds.
-        log.error("Document conversion timed out.")
-        self.kill()
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)
 
     def connect(self):
+        proc = self.get_soffice()
+        if proc is None:
+            self.start()
+
         for attempt in range(10):
             try:
                 context = uno.getComponentContext()
@@ -128,7 +153,6 @@ class Converter(object):
             except NoConnectException:
                 log.warning("No connection to LibreOffice (%s)", attempt)
                 time.sleep(2)
-        self.kill()
         raise SystemFailure("No connection to LibreOffice")
 
     def check_health(self, desktop):
@@ -138,7 +162,7 @@ class Converter(object):
             raise SystemFailure("LibreOffice has stray tasks.")
 
     def convert_file(self, file_name, timeout):
-        timer = Timer(timeout * 0.99, self.terminate)
+        timer = Timer(timeout * 0.99, self.abort)
         timer.start()
         try:
             return self._timed_convert_file(file_name)

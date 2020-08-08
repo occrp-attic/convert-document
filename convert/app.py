@@ -1,6 +1,5 @@
 import os
 import logging
-from threading import Lock
 from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
@@ -11,57 +10,45 @@ from convert.formats import load_mime_extensions
 PDF = "application/pdf"
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("convert")
-lock = Lock()
 extensions = load_mime_extensions()
 converter = Converter()
 app = Flask("convert")
+log.debug("INIT")
 
 
 @app.route("/")
 @app.route("/healthz")
 @app.route("/health/live")
 def check_health():
-    acquired = lock.acquire(timeout=2)
-    if not acquired:
-        return ("BUSY", 200)
     try:
-        converter.prepare()
         desktop = converter.connect()
-        converter.check_health(desktop)
+        if desktop is None:
+            return ("BUSY", 500)
         return ("OK", 200)
     except Exception:
         log.exception("Converter is not healthy.")
-        converter.kill()
         return ("DEAD", 500)
-    finally:
-        lock.release()
 
 
 @app.route("/health/ready")
 def check_ready():
-    acquired = lock.acquire(timeout=2)
-    if not acquired:
+    if converter.is_locked:
         return ("BUSY", 503)
-    lock.release()
     return ("OK", 200)
 
 
 @app.route("/reset")
 def reset():
     converter.kill()
-    if lock.locked():
-        lock.release()
     return ("OK", 200)
 
 
 @app.route("/convert", methods=["POST"])
 def convert():
     upload_file = None
-    acquired = lock.acquire(timeout=1)
-    if not acquired:
+    if not converter.lock():
         return ("BUSY", 503)
     try:
-        converter.prepare()
         timeout = int(request.args.get("timeout", 7200))
         for upload in request.files.values():
             file_name = FileName(upload.filename)
@@ -77,11 +64,11 @@ def convert():
             return send_file(out_file, mimetype=PDF, attachment_filename="output.pdf")
         return ("No file uploaded", 400)
     except ConversionFailure as ex:
-        converter.kill()
+        converter.abort()
         return (str(ex), 400)
     except (SystemFailure, Exception) as ex:
-        converter.kill()
+        converter.abort()
         log.warn("Error: %s", ex)
         return (str(ex), 500)
     finally:
-        lock.release()
+        converter.clear()
