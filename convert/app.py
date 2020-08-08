@@ -22,21 +22,19 @@ app = Flask("convert")
 @app.route("/health/live")
 def check_health():
     acquired = lock.acquire(timeout=2)
+    if not acquired:
+        return ("BUSY", 200)
     try:
-        if acquired:
-            converter.prepare()
+        converter.prepare()
         desktop = converter.connect()
-        # log.info('Frames: %s', desktop.getFrames().getCount())
-        # log.info('Tasks: %r', desktop.getTasks())
-        if acquired:
-            converter.check_health(desktop)
+        converter.check_health(desktop)
         return ("OK", 200)
     except Exception:
+        log.exception("Converter is not healthy.")
         converter.kill()
         return ("DEAD", 500)
     finally:
-        if acquired:
-            lock.release()
+        lock.release()
 
 
 @app.route("/health/ready")

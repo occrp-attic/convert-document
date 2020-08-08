@@ -82,8 +82,8 @@ class Converter(object):
         # https://www.youtube.com/watch?v=0WtDmbr9xyY
         try:
             for proc in process_iter():
-                name = proc.name()
-                if "soffice.bin" not in name:
+                name = " ".join(proc.cmdline())
+                if "soffice" not in name:
                     continue
                 log.warn("Killing process: %r", proc)
                 proc.kill()
