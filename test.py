@@ -5,13 +5,13 @@ import requests
 from multiprocessing import Pool
 
 signal.signal(signal.SIGINT, signal.SIG_IGN)
-url = os.environ.get('UNOSERVICE_URL')
+url = os.environ.get("UNOSERVICE_URL")
 
 
 def request(i):
     path = sys.argv[1]
-    files = {'file': open(path, 'rb')}
-    data = {'extension': 'docx'}
+    files = {"file": open(path, "rb")}
+    data = {"extension": "docx"}
     # print('send request')
     res = requests.post(url, files=files, data=data)
     # message = res.text if res.status_code != 200 else ''
