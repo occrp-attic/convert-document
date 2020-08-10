@@ -32,7 +32,6 @@ COMMAND = [
     "--nocrashreport",
     # "--nodefault",
     "--norestore",
-    # "--invisible",
     "--accept=%s" % CONNECTION,
 ]
 
@@ -112,29 +111,21 @@ class Converter(object):
             if proc is not None:
                 proc.kill()
                 proc.wait(timeout=5)
-            self.clear()
-        except TimeoutExpired:
-            log.error("Hanging process: %r", proc)
-            self.clear()
-            os._exit(23)
-        except Exception as exc:
+            self.unlock()
+        except (TimeoutExpired, Exception) as exc:
             log.error("Failed to kill: %r (%s)", proc, exc)
-            self.clear()
+            self.unlock()
             os._exit(23)
-
-    def clear(self):
-        self.unlock()
 
     def reset(self):
         flush_path(CONVERT_DIR)
 
     def start(self):
         flush_path(INSTANCE_DIR)
-        log.info("Starting LibreOffice: %s", COMMAND)
+        log.info("Starting LibreOffice: %s", " ".join(COMMAND))
         proc = subprocess.Popen(COMMAND, close_fds=True)
-        log.info("PID: %s", proc.pid)
         time.sleep(2)
-        log.info("Returncode: %s", proc.returncode)
+        log.info("PID: %s; return: %s", proc.pid, proc.returncode)
 
     def _svc_create(self, ctx, clazz):
         return ctx.ServiceManager.createInstanceWithContext(clazz, ctx)

@@ -70,4 +70,4 @@ def convert():
         log.warn("Error: %s", ex)
         return (str(ex), 500)
     finally:
-        converter.clear()
+        converter.unlock()
