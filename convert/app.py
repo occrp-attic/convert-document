@@ -3,15 +3,15 @@ import logging
 from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 
-from convert.converter import Converter, ConversionFailure, SystemFailure
-from convert.converter import CONVERT_DIR
+from convert.converter import ConversionFailure, SystemFailure, CONVERT_DIR, ConverterFactory
 from convert.formats import load_mime_extensions
 
+
+converter = ConverterFactory.get_instance(os.environ.get('CONVERTER_IMPLEMENTATION', 'unoconv'))
 PDF = "application/pdf"
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("convert")
 extensions = load_mime_extensions()
-converter = Converter()
 app = Flask("convert")
 
 
@@ -20,8 +20,8 @@ app = Flask("convert")
 @app.route("/health/live")
 def check_health():
     try:
-        desktop = converter.connect()
-        if desktop is None:
+        setup_is_done = converter.setup_is_done
+        if not setup_is_done:
             return ("BUSY", 500)
         return ("OK", 200)
     except Exception:
