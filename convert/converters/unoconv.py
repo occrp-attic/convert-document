@@ -5,19 +5,17 @@ import logging
 import subprocess
 from threading import Timer
 from tempfile import gettempdir
-from convert.converter import (
-    CONVERT_DIR,
-    flush_path,
-    ProcessConverter,
-    SystemFailure,
-    ConversionFailure,
-)
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException, IllegalArgumentException
 from com.sun.star.connection import NoConnectException
 from com.sun.star.io import IOException
 from com.sun.star.script import CannotConvertException
 from com.sun.star.uno import RuntimeException
+
+from convert.common import ProcessConverter
+from convert.util import CONVERT_DIR, flush_path
+from convert.util import SystemFailure, ConversionFailure
+
 
 DESKTOP = "com.sun.star.frame.Desktop"
 RESOLVER = "com.sun.star.bridge.UnoUrlResolver"

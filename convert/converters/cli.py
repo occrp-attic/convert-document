@@ -2,12 +2,9 @@ import os
 import logging
 import subprocess
 from tempfile import gettempdir
-from convert.converter import (
-    CONVERT_DIR,
-    flush_path,
-    ProcessConverter,
-    ConversionFailure,
-)
+from convert.common import ProcessConverter
+from convert.util import CONVERT_DIR, flush_path
+from convert.util import ConversionFailure
 
 OUT_DIR = os.path.join(CONVERT_DIR, "/tmp/out/")
 OUT_FILE = os.path.join(CONVERT_DIR, "output.pdf")
@@ -27,7 +24,7 @@ COMMAND = [
     "pdf",
     "--outdir",
     OUT_DIR,
-]  # noqa
+]
 
 log = logging.getLogger(__name__)
 

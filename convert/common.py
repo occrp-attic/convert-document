@@ -1,34 +1,10 @@
 import os
-import shutil
-import importlib
 import logging
 from abc import ABC
-from tempfile import gettempdir
 from psutil import process_iter, pid_exists, TimeoutExpired
+from convert.util import LOCK_FILE, CONVERT_DIR, flush_path
 
-CONVERT_DIR = os.path.join(gettempdir(), "convert")
-LOCK_FILE = os.path.join(gettempdir(), "convert.lock")
 log = logging.getLogger(__name__)
-
-
-class ConversionFailure(Exception):
-    # A failure related to the content or structure of the document
-    # given, which is expected to re-occur with consecutive attempts
-    # to process the document.
-    pass
-
-
-class SystemFailure(Exception):
-    # A failure of the service that lead to a failed conversion of
-    # the document which may or may not re-occur when the document
-    # is processed again.
-    pass
-
-
-def flush_path(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
 
 
 class Converter(object):
@@ -95,12 +71,3 @@ class ProcessConverter(Converter, ABC):
             name = " ".join(proc.cmdline())
             if self.process_name in name:
                 return proc
-
-
-class ConverterFactory(object):
-    @staticmethod
-    def get_instance(implementation):
-        print("loading " + implementation + " implementation")
-        module = importlib.import_module("." + implementation, "convert.converters")
-        cls = getattr(module, implementation.capitalize() + "Converter")
-        return cls()

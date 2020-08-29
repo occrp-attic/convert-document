@@ -2,23 +2,22 @@ import os
 import logging
 from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
+from pantomime.types import PDF
 
-from convert.converter import (
-    ConversionFailure,
-    SystemFailure,
-    CONVERT_DIR,
-    ConverterFactory,
-)
+from convert.converters.cli import CliConverter
+from convert.converters.unoconv import UnoconvConverter
 from convert.formats import load_mime_extensions
+from convert.util import CONVERT_DIR
+from convert.util import SystemFailure, ConversionFailure
 
-
-converter = ConverterFactory.get_instance(
-    os.environ.get("CONVERTER_IMPLEMENTATION", "unoconv")
-)
-PDF = "application/pdf"
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("convert")
 extensions = load_mime_extensions()
+method = os.environ.get("CONVERTER_METHOD", "unoconv")
+if method == "unoconv":
+    converter = UnoconvConverter()
+else:
+    converter = CliConverter()
 app = Flask("convert")
 
 
