@@ -6,7 +6,7 @@ from abc import ABC
 from tempfile import gettempdir
 from psutil import process_iter, pid_exists, TimeoutExpired
 
-CONVERT_DIR = os.path.join(gettempdir(), 'convert')
+CONVERT_DIR = os.path.join(gettempdir(), "convert")
 LOCK_FILE = os.path.join(gettempdir(), "convert.lock")
 log = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ def flush_path(path):
 
 class Converter(object):
     """Generic libreoffice converter class."""
+
     def lock(self):
         # Race conditions galore, but how likely
         # are requests at that rate?
@@ -100,6 +101,6 @@ class ConverterFactory(object):
     @staticmethod
     def get_instance(implementation):
         print("loading " + implementation + " implementation")
-        module = importlib.import_module("." + implementation, 'convert.converters')
-        cls = getattr(module, implementation.capitalize() + 'Converter')
+        module = importlib.import_module("." + implementation, "convert.converters")
+        cls = getattr(module, implementation.capitalize() + "Converter")
         return cls()

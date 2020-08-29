@@ -5,7 +5,13 @@ import logging
 import subprocess
 from threading import Timer
 from tempfile import gettempdir
-from convert.converter import CONVERT_DIR, flush_path, ProcessConverter, SystemFailure, ConversionFailure
+from convert.converter import (
+    CONVERT_DIR,
+    flush_path,
+    ProcessConverter,
+    SystemFailure,
+    ConversionFailure,
+)
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException, IllegalArgumentException
 from com.sun.star.connection import NoConnectException
