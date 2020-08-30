@@ -39,10 +39,6 @@ class Converter(object):
     def kill(self):
         raise NotImplementedError()
 
-    @property
-    def setup_is_done(self):
-        raise NotImplementedError()
-
     def convert_file(self, file_name, timeout):
         raise NotImplementedError()
 

@@ -4,7 +4,6 @@ import time
 import logging
 import subprocess
 from threading import Timer
-from tempfile import gettempdir
 from com.sun.star.beans import PropertyValue
 from com.sun.star.lang import DisposedException, IllegalArgumentException
 from com.sun.star.connection import NoConnectException
@@ -13,15 +12,13 @@ from com.sun.star.script import CannotConvertException
 from com.sun.star.uno import RuntimeException
 
 from convert.common import ProcessConverter
-from convert.util import CONVERT_DIR, flush_path
+from convert.util import CONVERT_DIR, INSTANCE_DIR, flush_path
 from convert.util import SystemFailure, ConversionFailure
 
 
 DESKTOP = "com.sun.star.frame.Desktop"
 RESOLVER = "com.sun.star.bridge.UnoUrlResolver"
 OUT_FILE = os.path.join(CONVERT_DIR, "output.pdf")
-LOCK_FILE = os.path.join(gettempdir(), "convert.lock")
-INSTANCE_DIR = os.path.join(gettempdir(), "soffice")
 CONNECTION = (
     "socket,host=localhost,port=2002,tcpNoDelay=1;urp;StarOffice.ComponentContext"
 )
@@ -82,12 +79,11 @@ class UnoconvConverter(ProcessConverter):
                 time.sleep(2)
         raise SystemFailure("No connection to LibreOffice")
 
-    @property
-    def setup_is_done(self):
+    def check_healthy(self):
         desktop = self.connect()
         return desktop is not None
 
-    def check_health(self, desktop):
+    def check_desktop(self, desktop):
         if desktop.getFrames().getCount() != 0:
             raise SystemFailure("LibreOffice has stray frames.")
         if desktop.getTasks() is not None:
@@ -103,7 +99,7 @@ class UnoconvConverter(ProcessConverter):
 
     def _timed_convert_file(self, file_name):
         desktop = self.connect()
-        self.check_health(desktop)
+        self.check_desktop(desktop)
         # log.debug("[%s] connected.", file_name)
         try:
             url = uno.systemPathToFileUrl(file_name)

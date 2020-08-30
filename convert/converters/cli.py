@@ -1,14 +1,11 @@
 import os
 import logging
 import subprocess
-from tempfile import gettempdir
 from convert.common import ProcessConverter
-from convert.util import CONVERT_DIR, flush_path
+from convert.util import CONVERT_DIR, INSTANCE_DIR, flush_path
 from convert.util import ConversionFailure
 
-OUT_DIR = os.path.join(CONVERT_DIR, "/tmp/out/")
-OUT_FILE = os.path.join(CONVERT_DIR, "output.pdf")
-INSTANCE_DIR = os.path.join(gettempdir(), "soffice")
+OUT_DIR = os.path.join(CONVERT_DIR, "out")
 ENV = '"-env:UserInstallation=file:///%s"' % INSTANCE_DIR
 COMMAND = [
     "/usr/bin/libreoffice",
@@ -30,16 +27,11 @@ log = logging.getLogger(__name__)
 
 
 class CliConverter(ProcessConverter):
-    @property
-    def setup_is_done(self):
-        return True
-
     def __init__(self):
         super().__init__("libreoffice")
 
-    def on_convert_error(self, e):
-        self.kill()
-        raise ConversionFailure("Cannot generate PDF.", e)
+    def check_healthy(self):
+        return True
 
     def convert_file(self, file_name, timeout):
         flush_path(INSTANCE_DIR)
@@ -61,7 +53,8 @@ class CliConverter(ProcessConverter):
             out_file = os.path.join(OUT_DIR, pdf_files[0])
         except Exception as e:
             log.info("LibreOffice conversion failed", e)
-            self.on_convert_error(e)
+            self.kill()
+            raise ConversionFailure("Cannot generate PDF.", e)
 
         if out_file is None:
             raise ConversionFailure("Cannot generate PDF.")

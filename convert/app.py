@@ -26,8 +26,7 @@ app = Flask("convert")
 @app.route("/health/live")
 def check_health():
     try:
-        setup_is_done = converter.setup_is_done
-        if not setup_is_done:
+        if not converter.check_healthy():
             return ("BUSY", 500)
         return ("OK", 200)
     except Exception:
