@@ -2,17 +2,23 @@ import os
 import logging
 from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
+from pantomime.types import PDF
 
-from convert.converter import Converter, ConversionFailure, SystemFailure
-from convert.converter import CONVERT_DIR
+from convert.process import ProcessConverter
+from convert.unoconv import UnoconvConverter
 from convert.formats import load_mime_extensions
+from convert.util import CONVERT_DIR
+from convert.util import SystemFailure, ConversionFailure
 
-PDF = "application/pdf"
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("convert")
-extensions = load_mime_extensions()
-converter = Converter()
 app = Flask("convert")
+extensions = load_mime_extensions()
+method = os.environ.get("CONVERTER_METHOD", "unoconv")
+if method == "unoconv":
+    converter = UnoconvConverter()
+else:
+    converter = ProcessConverter()
 
 
 @app.route("/")
@@ -20,8 +26,7 @@ app = Flask("convert")
 @app.route("/health/live")
 def check_health():
     try:
-        desktop = converter.connect()
-        if desktop is None:
+        if not converter.check_healthy():
             return ("BUSY", 500)
         return ("OK", 200)
     except Exception:
@@ -39,6 +44,7 @@ def check_ready():
 @app.route("/reset")
 def reset():
     converter.kill()
+    converter.unlock()
     return ("OK", 200)
 
 
@@ -48,7 +54,7 @@ def convert():
     if not converter.lock():
         return ("BUSY", 503)
     try:
-        converter.reset()
+        converter.prepare()
         timeout = int(request.args.get("timeout", 7200))
         upload = request.files.get("file")
         file_name = FileName(upload.filename)
