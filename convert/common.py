@@ -1,6 +1,5 @@
 import os
 import logging
-from abc import ABC
 from psutil import process_iter, pid_exists, TimeoutExpired
 from convert.util import LOCK_FILE, CONVERT_DIR, flush_path
 
@@ -9,6 +8,8 @@ log = logging.getLogger(__name__)
 
 class Converter(object):
     """Generic libreoffice converter class."""
+
+    PROCESS_NAME = "soffice.bin"
 
     def lock(self):
         # Race conditions galore, but how likely
@@ -33,19 +34,11 @@ class Converter(object):
             return False
         return True
 
-    def reset(self):
+    def prepare(self):
         flush_path(CONVERT_DIR)
-
-    def kill(self):
-        raise NotImplementedError()
 
     def convert_file(self, file_name, timeout):
         raise NotImplementedError()
-
-
-class ProcessConverter(Converter, ABC):
-    def __init__(self, process_name):
-        self.process_name = process_name
 
     def kill(self):
         log.info("Disposing converter process.")
@@ -55,15 +48,13 @@ class ProcessConverter(Converter, ABC):
             proc = self.get_proc()
             if proc is not None:
                 proc.kill()
-                proc.wait(timeout=5)
-            self.unlock()
+                proc.wait(timeout=7)
         except (TimeoutExpired, Exception) as exc:
             log.error("Failed to kill: %r (%s)", proc, exc)
-            self.unlock()
             os._exit(23)
 
     def get_proc(self):
         for proc in process_iter(["cmdline"]):
             name = " ".join(proc.cmdline())
-            if self.process_name in name:
+            if self.PROCESS_NAME in name:
                 return proc

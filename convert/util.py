@@ -22,6 +22,8 @@ class SystemFailure(Exception):
 
 
 def flush_path(path):
-    if os.path.exists(path):
+    try:
         shutil.rmtree(path)
+    except Exception:
+        pass
     os.makedirs(path)

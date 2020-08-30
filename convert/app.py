@@ -4,21 +4,21 @@ from flask import Flask, request, send_file
 from pantomime import FileName, normalize_mimetype, mimetype_extension
 from pantomime.types import PDF
 
-from convert.converters.cli import CliConverter
-from convert.converters.unoconv import UnoconvConverter
+from convert.process import ProcessConverter
+from convert.unoconv import UnoconvConverter
 from convert.formats import load_mime_extensions
 from convert.util import CONVERT_DIR
 from convert.util import SystemFailure, ConversionFailure
 
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger("convert")
+app = Flask("convert")
 extensions = load_mime_extensions()
 method = os.environ.get("CONVERTER_METHOD", "unoconv")
 if method == "unoconv":
     converter = UnoconvConverter()
 else:
-    converter = CliConverter()
-app = Flask("convert")
+    converter = ProcessConverter()
 
 
 @app.route("/")
@@ -44,6 +44,7 @@ def check_ready():
 @app.route("/reset")
 def reset():
     converter.kill()
+    converter.unlock()
     return ("OK", 200)
 
 
@@ -53,7 +54,7 @@ def convert():
     if not converter.lock():
         return ("BUSY", 503)
     try:
-        converter.reset()
+        converter.prepare()
         timeout = int(request.args.get("timeout", 7200))
         upload = request.files.get("file")
         file_name = FileName(upload.filename)

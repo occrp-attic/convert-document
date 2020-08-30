@@ -11,7 +11,7 @@ from com.sun.star.io import IOException
 from com.sun.star.script import CannotConvertException
 from com.sun.star.uno import RuntimeException
 
-from convert.common import ProcessConverter
+from convert.common import Converter
 from convert.util import CONVERT_DIR, INSTANCE_DIR, flush_path
 from convert.util import SystemFailure, ConversionFailure
 
@@ -37,21 +37,18 @@ COMMAND = [
 log = logging.getLogger(__name__)
 
 
-class UnoconvConverter(ProcessConverter):
+class UnoconvConverter(Converter):
     """Launch a background instance of LibreOffice and convert documents
     to PDF using it's filters.
     """
 
+    PROCESS_NAME = "soffice.bin"
     PDF_FILTERS = (
         ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
         ("com.sun.star.text.WebDocument", "writer_web_pdf_Export"),
         ("com.sun.star.presentation.PresentationDocument", "impress_pdf_Export"),
         ("com.sun.star.drawing.DrawingDocument", "draw_pdf_Export"),
     )
-
-    def __init__(self):
-        super().__init__("soffice.bin")
-        self.alive = False
 
     def start(self):
         flush_path(INSTANCE_DIR)
@@ -89,8 +86,12 @@ class UnoconvConverter(ProcessConverter):
         if desktop.getTasks() is not None:
             raise SystemFailure("LibreOffice has stray tasks.")
 
+    def on_timeout(self):
+        self.kill()
+        raise SystemFailure("LibreOffice timed out.")
+
     def convert_file(self, file_name, timeout):
-        timer = Timer(timeout, self.kill)
+        timer = Timer(timeout, self.on_timeout)
         timer.start()
         try:
             return self._timed_convert_file(file_name)
