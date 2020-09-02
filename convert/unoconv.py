@@ -74,6 +74,8 @@ class UnoconvConverter(Converter):
             except NoConnectException:
                 log.warning("No connection to LibreOffice (%s)", attempt)
                 time.sleep(2)
+            except DisposedException:
+                raise SystemFailure("Bridge is disposed.")
         raise SystemFailure("No connection to LibreOffice")
 
     def check_healthy(self):

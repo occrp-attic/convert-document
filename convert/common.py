@@ -1,6 +1,6 @@
 import os
 import logging
-from psutil import process_iter, pid_exists, TimeoutExpired
+from psutil import process_iter, pid_exists, TimeoutExpired, NoSuchProcess
 from convert.util import LOCK_FILE, CONVERT_DIR, flush_path
 
 log = logging.getLogger(__name__)
@@ -44,14 +44,16 @@ class Converter(object):
         log.info("Disposing converter process.")
         # The Alfred Hitchcock approach to task management:
         # https://www.youtube.com/watch?v=0WtDmbr9xyY
-        try:
-            proc = self.get_proc()
-            if proc is not None:
+        proc = self.get_proc()
+        if proc is not None:
+            try:
                 proc.kill()
                 proc.wait(timeout=7)
-        except (TimeoutExpired, Exception) as exc:
-            log.error("Failed to kill: %r (%s)", proc, exc)
-            os._exit(23)
+            except NoSuchProcess:
+                log.info("Process has disappeared")
+            except (TimeoutExpired, Exception) as exc:
+                log.error("Failed to kill: %r (%s)", proc, exc)
+                os._exit(23)
 
     def get_proc(self):
         for proc in process_iter(["cmdline"]):
