@@ -43,3 +43,11 @@ make build && docker-compose -f docker-compose.dev.yml stop convert-document && 
 ## License
 
 MIT, see `LICENSE`.
+
+
+## Troubleshooting
+
+* `LibreOffice` keeps crashing on startup with `Fatal exception: Signal 11`
+
+If [AppArmor](https://help.ubuntu.com/community/AppArmor) is running on the host machine, it may be blocking `LibreOffice` from starting up.
+Try disabling the `AppArmor` profiles related to `LibreOffice` by following these instructions: [https://askubuntu.com/a/1214363](https://askubuntu.com/a/1214363)
