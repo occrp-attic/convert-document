@@ -16,9 +16,6 @@ RUN apt-get -qq -y update \
 
 ENV LANG='en_US.UTF-8'
 
-# RUN echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections
-# RUN apt-get -q -y install ttf-mscorefonts-installer
-
 RUN groupadd -g 1000 -r app \
     && useradd -m -u 1000 -d /tmp -s /bin/false -g app app
 
