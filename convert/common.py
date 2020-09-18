@@ -26,10 +26,11 @@ class Converter(object):
 
     @property
     def is_locked(self):
-        if not os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as fh:
+                pid = int(fh.read())
+        except FileNotFoundError:
             return False
-        with open(LOCK_FILE, "r") as fh:
-            pid = int(fh.read())
         if not pid_exists(pid):
             return False
         return True
