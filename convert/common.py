@@ -29,7 +29,7 @@ class Converter(object):
         try:
             with open(LOCK_FILE, "r") as fh:
                 pid = int(fh.read())
-        except FileNotFoundError:
+        except (ValueError, FileNotFoundError):
             return False
         if not pid_exists(pid):
             return False
