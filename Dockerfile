@@ -1,6 +1,10 @@
 FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND noninteractive
 
+LABEL org.opencontainers.image.title "Aleph document converters"
+LABEL org.opencontainers.image.licenses MIT
+LABEL org.opencontainers.image.source https://github.com/alephdata/convert-document
+
 RUN apt-get -qq -y update \
     && apt-get -q -y dist-upgrade \
     && apt-get -q -y install locales libreoffice libreoffice-writer psmisc curl \

@@ -3,22 +3,28 @@ name: build
 on:
   push: {}
   schedule:
-  - cron:  '20 4 * * *'
+    - cron: "20 4 * * *"
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Show ref
-      run: |
-        echo "$GITHUB_REF"
-    - name: Build docker image
-      run: |
-        docker build -t alephdata/convert-document:${GITHUB_SHA} .
-        make build
-    - name: Push docker image (master)
-      run: |
-        docker login -u ${{ secrets.docker_user }} -p ${{ secrets.docker_password }}
-        docker push alephdata/convert-document:${GITHUB_SHA}
-        make push
+      - uses: actions/checkout@v1
+      - name: Show ref
+        run: |
+          echo "$GITHUB_REF"
+      - name: Build docker image
+        run: |
+          docker build -t alephdata/convert-document:${GITHUB_SHA} .
+          make build
+      - name: Push docker image (docker hub)
+        run: |
+          docker login -u ${{ secrets.docker_user }} -p ${{ secrets.docker_password }}
+          docker push alephdata/convert-document:${GITHUB_SHA}
+      - name: Push docker image (ghcr.io)
+        run: |
+          echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
+          docker tag alephdata/convert-document:${GITHUB_SHA} ghcr.io/alephdata/convert-document:${GITHUB_SHA}
+          docker tag alephdata/convert-document:${GITHUB_SHA} ghcr.io/alephdata/convert-document
+          docker push ghcr.io/alephdata/convert-document:${GITHUB_SHA}
+          docker push ghcr.io/alephdata/convert-document
