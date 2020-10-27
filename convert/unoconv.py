@@ -42,7 +42,6 @@ class UnoconvConverter(Converter):
     to PDF using it's filters.
     """
 
-    PROCESS_NAME = "soffice.bin"
     PDF_FILTERS = (
         ("com.sun.star.text.GenericTextDocument", "writer_pdf_Export"),
         ("com.sun.star.text.WebDocument", "writer_web_pdf_Export"),

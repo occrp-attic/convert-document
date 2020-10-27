@@ -9,8 +9,6 @@ log = logging.getLogger(__name__)
 class Converter(object):
     """Generic libreoffice converter class."""
 
-    PROCESS_NAME = "soffice.bin"
-
     def lock(self):
         # Race conditions galore, but how likely
         # are requests at that rate?
@@ -42,22 +40,24 @@ class Converter(object):
         raise NotImplementedError()
 
     def kill(self):
-        log.info("Disposing converter process.")
         # The Alfred Hitchcock approach to task management:
         # https://www.youtube.com/watch?v=0WtDmbr9xyY
-        proc = self.get_proc()
-        if proc is not None:
+        for i in range(10):
+            proc = self.get_proc()
+            if proc is None:
+                break
+            log.info("Disposing converter process.")
             try:
                 proc.kill()
-                proc.wait(timeout=7)
+                proc.wait(timeout=3)
             except NoSuchProcess:
                 log.info("Process has disappeared")
             except (TimeoutExpired, Exception) as exc:
                 log.error("Failed to kill: %r (%s)", proc, exc)
-                os._exit(23)
+                # os._exit(23)
 
     def get_proc(self):
         for proc in process_iter(["cmdline"]):
             name = " ".join(proc.cmdline())
-            if self.PROCESS_NAME in name:
+            if "soffice.bin" in name:
                 return proc

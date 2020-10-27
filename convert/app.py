@@ -19,6 +19,8 @@ if method == "unoconv":
     converter = UnoconvConverter()
 else:
     converter = ProcessConverter()
+    converter.kill()
+converter.unlock()
 
 
 @app.route("/")
